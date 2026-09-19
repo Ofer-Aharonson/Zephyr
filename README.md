@@ -51,29 +51,6 @@ Keep and always-sell lists are per character.
 
 The folder name must be `Zephyr`, and it must contain `Zephyr.toc`.
 
-## CurseForge listing copy
-
-**Summary**
-
-Fast loot, vendors, mail, quests, and other obvious-click quality of life. Hold Shift to skip.
-
-**Description**
-
-Zephyr clicks the obvious button so you do not have to.
-
-It loots corpses and chests quickly, sells junk and repairs at merchants, opens mail (COD is left alone), accepts and turns in quests (multi-item rewards are left for you), and clicks a gossip window that has only one option.
-
-It can also release in battlegrounds, accept resurrections, skip combat resurrections, skip cinematics, dismount or stand when the game requires it, and confirm poor-quality item deletes.
-
-Most options start on. Hold Shift to skip the current window. Toggle anything from Options → AddOns → Zephyr, or with `/zephyr`.
-
-Always-sell and never-sell lists:
-
-- `/zephyr sellitem [link or id]`
-- `/zephyr keep [link or id]`
-
-This project is not affiliated with Blizzard Entertainment.
-
 ## License
 
 MIT. See [LICENSE](LICENSE).
