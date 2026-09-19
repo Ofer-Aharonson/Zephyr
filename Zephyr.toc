@@ -1,0 +1,22 @@
+## Interface: 16001
+## Title: Zephyr
+## Notes: Fast loot, vendors, mail, quests, and other obvious-click QoL. Hold Shift to skip.
+## Author: Ofer
+## Version: 1.0.0
+## DefaultState: enabled
+## IconTexture: Interface\AddOns\Zephyr\Media\icon
+## SavedVariablesPerCharacter: ZephyrDB
+## Category: Inventory
+## X-License: MIT
+
+Zephyr.lua
+Loot.lua
+Vendor.lua
+Marks.lua
+Mail.lua
+Quest.lua
+Life.lua
+Cinematic.lua
+Stand.lua
+Delete.lua
+Settings.lua
