@@ -6,6 +6,9 @@ Most options start on. Hold **Shift** to skip the current window.
 
 Tested on Classic Beta (`Interface 16001`).
 
+- [CurseForge](https://www.curseforge.com/wow/addons/zephyr)
+- [GitHub](https://github.com/Ofer-Aharonson/Zephyr)
+
 ## Features
 
 - **Faster autoloot** — takes loot as soon as a corpse or chest opens
