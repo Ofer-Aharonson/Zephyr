@@ -44,17 +44,8 @@ local function HasCampRest()
 			break
 		end
 		local name = type(aura.name) == "string" and aura.name:lower() or ""
-		if name:find("rest", 1, true) and (name:find("camp", 1, true) or name:find("fire", 1, true)) then
+		if name == "welcoming campfire" then
 			return true
-		end
-		if aura.spellId and C_Spell and C_Spell.GetSpellDescription then
-			local desc = C_Spell.GetSpellDescription(aura.spellId)
-			if type(desc) == "string" then
-				local text = desc:lower()
-				if text:find("camp", 1, true) and (text:find("sit", 1, true) or text:find("seated", 1, true)) then
-					return true
-				end
-			end
 		end
 	end
 	return false

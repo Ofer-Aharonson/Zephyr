@@ -7,9 +7,14 @@ local function SkipCinematic()
 	if not ns.db.cinematic.enabled or ns:Waits() then
 		return
 	end
-	if StopCinematic then
-		ns:Debug("stop cinematic")
-		StopCinematic()
+	if CinematicFrame and CinematicFrame.isRealCinematic then
+		if StopCinematic then
+			ns:Debug("stop cinematic")
+			StopCinematic()
+		end
+	elseif CanCancelScene and CanCancelScene() then
+		ns:Debug("cancel scene")
+		CancelScene()
 	end
 end
 
@@ -17,14 +22,10 @@ local function SkipMovie()
 	if not ns.db.cinematic.enabled or ns:Waits() then
 		return
 	end
-	if CinematicFinished then
-		CinematicFinished(Enum and Enum.CinematicType and Enum.CinematicType.GameMovie or 1, true)
-	elseif GameMovieFinished then
-		GameMovieFinished()
-	elseif MovieFrame and MovieFrame.StopMovie then
-		MovieFrame:StopMovie()
+	if MovieFrame then
+		MovieFrame:Hide()
+		ns:Debug("hide movie")
 	end
-	ns:Debug("stop movie")
 end
 
 local function HideTalkingHead(frame)

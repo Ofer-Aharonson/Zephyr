@@ -24,7 +24,7 @@ local function ConfirmGreyDelete()
 	for i = 1, STATICPOPUP_NUMDIALOGS or 4 do
 		local popup = _G["StaticPopup" .. i]
 		if popup and popup:IsShown() and popup.which and tostring(popup.which):find("DELETE", 1, true) then
-			local edit = popup.editBox or popup.EditBox or (popup.GetName and _G[popup:GetName() .. "EditBox"])
+			local edit = popup.editBox or (popup.GetEditBox and popup:GetEditBox()) or popup.EditBox or (popup.GetName and _G[popup:GetName() .. "EditBox"])
 			if edit and edit.IsShown and edit:IsShown() and DELETE_ITEM_CONFIRM_STRING then
 				edit:SetText(DELETE_ITEM_CONFIRM_STRING)
 			end

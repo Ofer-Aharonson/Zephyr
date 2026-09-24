@@ -7,11 +7,14 @@ local NAME_WIDTH = 168
 local ROW_HEIGHT = 30
 local INK = { 0.22, 0.12, 0.05 }
 local INK_SOFT = { 0.40, 0.26, 0.13 }
+local SAVE_NOTE = "Forever has a bug and will not keep these settings after a reload, and will work for this session only.\nIt will be fixed once the game is live."
 
 local panel
 local child
 local listsAnchor
 local restockAnchor
+local listsCanvas
+local restockCanvas
 local rows = {}
 local sectionBits = {}
 local page = "options"
@@ -274,7 +277,28 @@ local function ListButton(index)
 	return row
 end
 
-local function ShowItemLink(row, itemID, list)
+local function ConfirmRemove(label, listName, apply)
+	if not StaticPopupDialogs.ZEPHYR_REMOVE_LIST_ITEM then
+		StaticPopupDialogs.ZEPHYR_REMOVE_LIST_ITEM = {
+			text = "Remove %s from %s?",
+			button1 = YES,
+			button2 = CANCEL,
+			OnAccept = function(dialog, data)
+				data = data or (dialog and dialog.data)
+				if data and data.apply then
+					data.apply()
+				end
+			end,
+			timeout = 0,
+			whileDead = true,
+			hideOnEscape = true,
+			preferredIndex = 3,
+		}
+	end
+	StaticPopup_Show("ZEPHYR_REMOVE_LIST_ITEM", label, listName, { apply = apply })
+end
+
+local function ShowItemLink(row, itemID, list, listName)
 	local label = ns:ItemLabel(itemID)
 	row.text:SetText(label)
 	row:SetScript("OnEnter", function()
@@ -301,11 +325,13 @@ local function ShowItemLink(row, itemID, list)
 		if button ~= "RightButton" then
 			return
 		end
-		list[itemID] = nil
-		if ns.Marks then
-			ns.Marks:Update()
-		end
-		SettingsUI:Refresh()
+		ConfirmRemove(label, listName or "the list", function()
+			list[itemID] = nil
+			if ns.Marks then
+				ns.Marks:Update()
+			end
+			SettingsUI:Refresh()
+		end)
 	end)
 	if C_Item.RequestLoadItemDataByID then
 		C_Item.RequestLoadItemDataByID(itemID)
@@ -365,7 +391,7 @@ local function FillList(title, list, y, index)
 		row:ClearAllPoints()
 		row:SetPoint("TOPLEFT", 16, y)
 		row:SetPoint("RIGHT", -12, 0)
-		ShowItemLink(row, ids[i], list)
+		ShowItemLink(row, ids[i], list, title)
 		y = y - 18
 		index = index + 1
 	end
@@ -377,18 +403,119 @@ local function LayoutLists()
 		return
 	end
 	HideListRows()
-	local y = -4
-	local index = 1
-	y, index = FillList("Keep", ns.db.vendor.neverSell, y, index)
-	y = y - 10
-	y = FillList("Sell", ns.db.vendor.alwaysSell, y, index)
+	local y = -78
+	if not listsAnchor.bagLabel then
+		listsAnchor.bagLabel = listsAnchor:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+		listsAnchor.bagLabel:SetText("In your bags")
+	end
+	listsAnchor.bagLabel:ClearAllPoints()
+	listsAnchor.bagLabel:SetPoint("TOPLEFT", 8, y)
+	y = y - 22
+	local bags = {}
+	local seen = {}
+	for bag = 0, 4 do
+		local slots = C_Container.GetContainerNumSlots(bag) or 0
+		for slot = 1, slots do
+			local info = C_Container.GetContainerItemInfo(bag, slot)
+			if info and info.itemID then
+				local entry = seen[info.itemID]
+				if not entry then
+					entry = { itemID = info.itemID, count = 0, texture = info.iconFileID }
+					seen[info.itemID] = entry
+					bags[#bags + 1] = entry
+				end
+				entry.count = entry.count + (info.stackCount or 1)
+			end
+		end
+	end
+	table.sort(bags, function(a, b)
+		return a.itemID < b.itemID
+	end)
+	local size, gap, perRow = 36, 6, 8
+	for i = 1, #bags do
+		local entry = bags[i]
+		local button = listsAnchor.bagButtons[i]
+		if not button then
+			button = CreateFrame("Button", nil, listsAnchor)
+			button:SetSize(size, size)
+			button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+			button.icon = button:CreateTexture(nil, "ARTWORK")
+			button.icon:SetAllPoints()
+			button.count = button:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+			button.count:SetPoint("BOTTOMRIGHT", -2, 2)
+			button:SetScript("OnLeave", function()
+				GameTooltip:Hide()
+			end)
+			listsAnchor.bagButtons[i] = button
+		end
+		local column = (i - 1) % perRow
+		local rowIndex = math.floor((i - 1) / perRow)
+		button.itemID = entry.itemID
+		button.icon:SetTexture(entry.texture)
+		button.count:SetText(entry.count)
+		local kept = ns.db.vendor.neverSell[entry.itemID]
+		local sold = ns.db.vendor.alwaysSell[entry.itemID]
+		button.icon:SetDesaturated(kept or sold)
+		button:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			local _, link = C_Item.GetItemInfo(self.itemID)
+			if link then
+				GameTooltip:SetHyperlink(link)
+			else
+				GameTooltip:SetText(ns:ItemLabel(self.itemID))
+			end
+			if kept then
+				GameTooltip:AddLine("On Keep.", INK_SOFT[1], INK_SOFT[2], INK_SOFT[3])
+			elseif sold then
+				GameTooltip:AddLine("On Sell.", INK_SOFT[1], INK_SOFT[2], INK_SOFT[3])
+			else
+				GameTooltip:AddLine("Left-click to keep. Right-click to sell.", INK_SOFT[1], INK_SOFT[2], INK_SOFT[3])
+			end
+			GameTooltip:Show()
+		end)
+		button:SetScript("OnClick", function(self, mouseButton)
+			local list = mouseButton == "RightButton" and ns.db.vendor.alwaysSell or ns.db.vendor.neverSell
+			if list[self.itemID] then
+				return
+			end
+			list[self.itemID] = true
+			if ns.Marks then
+				ns.Marks:Update()
+			end
+			SettingsUI:Refresh()
+		end)
+		button:ClearAllPoints()
+		button:SetPoint("TOPLEFT", 16 + column * (size + gap), y - rowIndex * (size + gap))
+		button:Show()
+	end
+	for i = #bags + 1, #listsAnchor.bagButtons do
+		listsAnchor.bagButtons[i]:Hide()
+	end
+	local bagRows = math.ceil(#bags / perRow)
+	if bagRows > 0 then
+		y = y - bagRows * (size + gap)
+	end
 	y = y - 8
 	listsAnchor.hint:ClearAllPoints()
 	listsAnchor.hint:SetPoint("TOPLEFT", 8, y)
 	listsAnchor.hint:SetPoint("RIGHT", listsAnchor, "RIGHT", -12, 0)
-	y = y - 32
-	listsAnchor:SetHeight(-y)
-	child:SetHeight(-contentY + listsAnchor:GetHeight() + 12)
+	y = y - 36
+	if listsAnchor.addBox then
+		listsAnchor.addBox:ClearAllPoints()
+		listsAnchor.addBox:SetPoint("TOPLEFT", 16, y)
+	end
+	y = y - 28
+	local index = 1
+	y, index = FillList("Keep", ns.db.vendor.neverSell, y, index)
+	y = y - 10
+	y = FillList("Sell", ns.db.vendor.alwaysSell, y, index)
+	listsAnchor:SetHeight(-y + 8)
+	if listsCanvas and listsCanvas.inner then
+		listsCanvas.inner:SetHeight(listsAnchor:GetHeight() + 12)
+	end
+	if child then
+		child:SetHeight(-contentY + 12)
+	end
 end
 
 local function PaintPaper(parent)
@@ -408,20 +535,9 @@ local function PaintPaper(parent)
 	border:EnableMouse(false)
 
 	local portrait = parent:CreateTexture(nil, "ARTWORK")
-	portrait:SetPoint("TOPLEFT", 22, -18)
-	portrait:SetSize(46, 46)
+	portrait:SetPoint("TOPLEFT", 18, -16)
+	portrait:SetSize(52, 52)
 	portrait:SetTexture("Interface\\AddOns\\Zephyr\\Media\\icon")
-	if portrait.AddMaskTexture and parent.CreateMaskTexture then
-		local mask = parent:CreateMaskTexture()
-		mask:SetAllPoints(portrait)
-		mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-		portrait:AddMaskTexture(mask)
-	end
-
-	local ring = parent:CreateTexture(nil, "OVERLAY")
-	ring:SetPoint("CENTER", portrait, "CENTER", 0, 0)
-	ring:SetSize(78, 78)
-	ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
 end
 
 local function RefreshChecks()
@@ -437,9 +553,100 @@ local function LayoutRestock()
 	for i = 1, #restockAnchor.rows do
 		restockAnchor.rows[i]:Hide()
 	end
-	local y = -28
+	local y = -78
+	if not restockAnchor.bagLabel then
+		restockAnchor.bagLabel = restockAnchor:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+		restockAnchor.bagLabel:SetText("In your bags")
+	end
+	restockAnchor.bagLabel:ClearAllPoints()
+	restockAnchor.bagLabel:SetPoint("TOPLEFT", 8, y)
+	y = y - 22
+	local bags = {}
+	local seen = {}
+	for bag = 0, 4 do
+		local slots = C_Container.GetContainerNumSlots(bag) or 0
+		for slot = 1, slots do
+			local info = C_Container.GetContainerItemInfo(bag, slot)
+			if info and info.itemID then
+				local entry = seen[info.itemID]
+				if not entry then
+					entry = { itemID = info.itemID, count = 0, texture = info.iconFileID }
+					seen[info.itemID] = entry
+					bags[#bags + 1] = entry
+				end
+				entry.count = entry.count + (info.stackCount or 1)
+			end
+		end
+	end
+	table.sort(bags, function(a, b)
+		return a.itemID < b.itemID
+	end)
+	local size, gap, perRow = 36, 6, 8
+	for i = 1, #bags do
+		local entry = bags[i]
+		local button = restockAnchor.bagButtons[i]
+		if not button then
+			button = CreateFrame("Button", nil, restockAnchor)
+			button:SetSize(size, size)
+			button.icon = button:CreateTexture(nil, "ARTWORK")
+			button.icon:SetAllPoints()
+			button.count = button:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+			button.count:SetPoint("BOTTOMRIGHT", -2, 2)
+			button:SetScript("OnLeave", function()
+				GameTooltip:Hide()
+			end)
+			restockAnchor.bagButtons[i] = button
+		end
+		local column = (i - 1) % perRow
+		local rowIndex = math.floor((i - 1) / perRow)
+		button.itemID = entry.itemID
+		button.holdCount = entry.count
+		button.icon:SetTexture(entry.texture)
+		button.count:SetText(entry.count)
+		local already = ns:RestockCount(entry.itemID)
+		button.icon:SetDesaturated(already and true or false)
+		button:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			local _, link = C_Item.GetItemInfo(self.itemID)
+			if link then
+				GameTooltip:SetHyperlink(link)
+			else
+				GameTooltip:SetText(ns:ItemLabel(self.itemID))
+			end
+			GameTooltip:AddLine("Click to restock " .. self.holdCount .. ".", INK_SOFT[1], INK_SOFT[2], INK_SOFT[3])
+			GameTooltip:Show()
+		end)
+		button:SetScript("OnClick", function(self)
+			if ns:RestockCount(self.itemID) then
+				return
+			end
+			ns:SetRestock(self.itemID, self.holdCount)
+			SettingsUI:Refresh()
+		end)
+		button:ClearAllPoints()
+		button:SetPoint("TOPLEFT", 16 + column * (size + gap), y - rowIndex * (size + gap))
+		button:Show()
+	end
+	for i = #bags + 1, #restockAnchor.bagButtons do
+		restockAnchor.bagButtons[i]:Hide()
+	end
+	local bagRows = math.ceil(#bags / perRow)
+	if bagRows > 0 then
+		y = y - bagRows * (size + gap)
+	end
+	y = y - 8
+	restockAnchor.hint:ClearAllPoints()
+	restockAnchor.hint:SetPoint("TOPLEFT", 8, y)
+	restockAnchor.hint:SetPoint("RIGHT", -12, 0)
+	y = y - 36
+	if restockAnchor.addBox then
+		restockAnchor.addBox:ClearAllPoints()
+		restockAnchor.addBox:SetPoint("TOPLEFT", 16, y)
+	end
+	y = y - 28
 	local index = 0
-	for itemID, count in pairs(ns.db.vendor.restock.items) do
+	for _, entry in ipairs(ns:RestockList()) do
+		local itemID, count = entry.id, entry.count
 		index = index + 1
 		local row = restockAnchor.rows[index]
 		if not row then
@@ -457,32 +664,44 @@ local function LayoutRestock()
 			row:EnableMouse(true)
 			row:SetScript("OnMouseUp", function(_, button)
 				if button == "RightButton" and row.itemID then
-					ns.db.vendor.restock.items[row.itemID] = nil
-					SettingsUI:Refresh()
+					local id = row.itemID
+					ConfirmRemove(ns:ItemLabel(id), "Restock", function()
+						ns:SetRestock(id, nil)
+						SettingsUI:Refresh()
+					end)
 				end
 			end)
 			restockAnchor.rows[index] = row
 		end
-		row.itemID = itemID
-		row.label:SetText(ns:ItemLabel(itemID))
+		row.itemID = tonumber(itemID) or itemID
+		row.label:SetText(ns:ItemLabel(row.itemID))
 		row.edit:SetText(tostring(count))
-		row.edit:SetScript("OnEnterPressed", function(self)
+		local function SaveCount(self)
+			local id = row.itemID
+			if not id then
+				return
+			end
 			local number = tonumber(self:GetText()) or 1
 			if number < 1 then
 				number = 1
 			end
-			ns.db.vendor.restock.items[itemID] = number
+			ns:SetRestock(id, number)
 			self:SetText(tostring(number))
 			self:ClearFocus()
-		end)
-		row.edit:SetScript("OnEditFocusLost", row.edit:GetScript("OnEnterPressed"))
+		end
+		row.edit:SetScript("OnEnterPressed", SaveCount)
+		row.edit:SetScript("OnEditFocusLost", nil)
 		row:ClearAllPoints()
 		row:SetPoint("TOPLEFT", 0, y)
 		row:SetPoint("RIGHT", -8, 0)
 		row:Show()
 		y = y - 24
 	end
+
 	restockAnchor:SetHeight(-y + 8)
+	if restockCanvas and restockCanvas.inner then
+		restockCanvas.inner:SetHeight(restockAnchor:GetHeight() + 12)
+	end
 end
 
 function SettingsUI:Refresh()
@@ -517,85 +736,8 @@ function SettingsUI:Start()
 	version:SetText("v" .. ns.VERSION)
 	Ink(version, INK_SOFT)
 
-	local sub = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
-	sub:SetPoint("RIGHT", panel, "RIGHT", -28, 0)
-	sub:SetJustifyH("LEFT")
-	sub:SetText("Hold Shift, and Zephyr waits.")
-	Ink(sub, INK)
-
 	local scroll = CreateFrame("ScrollFrame", "ZephyrSettingsScroll", panel, "UIPanelScrollFrameTemplate")
-	local pageButtons = {}
-	local function ShowPage(name)
-		page = name
-		local optionsOn = name == "options"
-		for i = 1, #sectionBits do
-			local bit = sectionBits[i]
-			if bit and bit.Show then
-				if optionsOn then
-					bit:Show()
-				else
-					bit:Hide()
-				end
-			end
-		end
-		if panel.repairRow then
-			if optionsOn then
-				panel.repairRow:Show()
-			else
-				panel.repairRow:Hide()
-			end
-		end
-		if listsAnchor then
-			if name == "lists" then
-				listsAnchor:Show()
-			else
-				listsAnchor:Hide()
-			end
-		end
-		if restockAnchor then
-			if name == "restock" then
-				restockAnchor:Show()
-			else
-				restockAnchor:Hide()
-			end
-		end
-		for key, button in pairs(pageButtons) do
-			if key == name then
-				button:SetAlpha(1)
-			else
-				button:SetAlpha(0.55)
-			end
-		end
-	end
-
-	local function PageButton(label, name, x)
-		local button = CreateFrame("Button", nil, panel)
-		button:SetSize(90, 18)
-		if x > 0 and pageButtons.options then
-			button:SetPoint("TOPLEFT", pageButtons.options, "TOPRIGHT", 16, 0)
-		else
-			button:SetPoint("TOPLEFT", 84, -58)
-		end
-		local text = button:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-		text:SetAllPoints()
-		text:SetJustifyH("LEFT")
-		text:SetText(label)
-		button:SetScript("OnClick", function()
-			ShowPage(name)
-			SettingsUI:Refresh()
-		end)
-		pageButtons[name] = button
-		return button
-	end
-
-	PageButton("Options", "options", 0)
-	PageButton("Restock", "restock", 1)
-	local listsButton = PageButton("Lists", "lists", 1)
-	listsButton:ClearAllPoints()
-	listsButton:SetPoint("TOPLEFT", pageButtons.restock, "TOPRIGHT", 16, 0)
-
-	scroll:SetPoint("TOPLEFT", 20, -82)
+	scroll:SetPoint("TOPLEFT", 20, -52)
 	scroll:SetPoint("BOTTOMRIGHT", -34, 18)
 
 	child = CreateFrame("Frame", nil, scroll)
@@ -614,15 +756,63 @@ function SettingsUI:Start()
 
 	contentY = y
 	listsAnchor = CreateFrame("Frame", nil, child)
-	listsAnchor:SetPoint("TOPLEFT", 0, y)
+	listsAnchor:SetPoint("TOPLEFT", 0, -2)
 	listsAnchor:SetPoint("RIGHT", -8, 0)
 	listsAnchor:SetHeight(40)
 	listsAnchor.headers = {}
+	listsAnchor.bagButtons = {}
+	local banner = CreateFrame("Frame", nil, listsAnchor)
+	banner:SetPoint("TOPLEFT", 8, -4)
+	banner:SetPoint("RIGHT", -8, 0)
+	banner:SetHeight(70)
+	local wash = banner:CreateTexture(nil, "BACKGROUND")
+	wash:SetAllPoints()
+	wash:SetColorTexture(0.55, 0.28, 0.08, 0.22)
+	local bannerText = banner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	bannerText:SetPoint("TOPLEFT", 8, -6)
+	bannerText:SetPoint("BOTTOMRIGHT", -8, 6)
+	bannerText:SetJustifyH("LEFT")
+	bannerText:SetJustifyV("MIDDLE")
+	bannerText:SetWordWrap(true)
+	bannerText:SetText(SAVE_NOTE)
+	Ink(bannerText, INK)
 	listsAnchor.hint = listsAnchor:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 	listsAnchor.hint:SetJustifyH("LEFT")
 	listsAnchor.hint:SetWordWrap(true)
-	listsAnchor.hint:SetText("Drop an item on Keep or Sell. Right-click a link to remove it.")
+	listsAnchor.hint:SetText("Left-click a bag icon to keep it. Right-click a bag icon to sell it. Right-click a link to remove it.")
 	Ink(listsAnchor.hint, INK_SOFT)
+	local addBox = CreateFrame("EditBox", nil, listsAnchor, "InputBoxTemplate")
+	addBox:SetSize(180, 20)
+	addBox:SetAutoFocus(false)
+	addBox:SetMaxLetters(80)
+	local keepButton = CreateFrame("Button", nil, listsAnchor, "UIPanelButtonTemplate")
+	keepButton:SetSize(48, 20)
+	keepButton:SetPoint("LEFT", addBox, "RIGHT", 8, 0)
+	keepButton:SetText("Keep")
+	local sellButton = CreateFrame("Button", nil, listsAnchor, "UIPanelButtonTemplate")
+	sellButton:SetSize(48, 20)
+	sellButton:SetPoint("LEFT", keepButton, "RIGHT", 8, 0)
+	sellButton:SetText("Sell")
+	local function AddTyped(list)
+		local itemID = ns:ItemIDFromArg(addBox:GetText() or "")
+		if not itemID or list[itemID] then
+			return
+		end
+		list[itemID] = true
+		addBox:SetText("")
+		addBox:ClearFocus()
+		if ns.Marks then
+			ns.Marks:Update()
+		end
+		SettingsUI:Refresh()
+	end
+	keepButton:SetScript("OnClick", function()
+		AddTyped(ns.db.vendor.neverSell)
+	end)
+	sellButton:SetScript("OnClick", function()
+		AddTyped(ns.db.vendor.alwaysSell)
+	end)
+	listsAnchor.addBox = addBox
 
 	listsAnchor:EnableMouse(true)
 	local repairRow = CreateFrame("Frame", nil, child)
@@ -665,13 +855,64 @@ function SettingsUI:Start()
 	restockAnchor:SetPoint("RIGHT", -8, 0)
 	restockAnchor:SetHeight(80)
 	restockAnchor:Hide()
+	local banner = CreateFrame("Frame", nil, restockAnchor)
+	banner:SetPoint("TOPLEFT", 8, -4)
+	banner:SetPoint("RIGHT", -8, 0)
+	banner:SetHeight(70)
+	local wash = banner:CreateTexture(nil, "BACKGROUND")
+	wash:SetAllPoints()
+	wash:SetColorTexture(0.55, 0.28, 0.08, 0.22)
+	local bannerText = banner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	bannerText:SetPoint("TOPLEFT", 8, -6)
+	bannerText:SetPoint("BOTTOMRIGHT", -8, 6)
+	bannerText:SetJustifyH("LEFT")
+	bannerText:SetJustifyV("MIDDLE")
+	bannerText:SetWordWrap(true)
+	bannerText:SetText(SAVE_NOTE)
+	Ink(bannerText, INK)
 	restockAnchor.hint = restockAnchor:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	restockAnchor.hint:SetPoint("TOPLEFT", 8, -4)
+	restockAnchor.hint:SetPoint("TOPLEFT", 8, -62)
 	restockAnchor.hint:SetPoint("RIGHT", -12, 0)
 	restockAnchor.hint:SetJustifyH("LEFT")
-	restockAnchor.hint:SetText("Drop an item. The number is how many you want to hold. Right-click to remove it.")
+	restockAnchor.hint:SetText("Click an item from your bags. The number is how many you want to hold. Right-click a line to remove it.")
 	Ink(restockAnchor.hint, INK_SOFT)
 	restockAnchor.rows = {}
+	restockAnchor.bagButtons = {}
+	local addBox = CreateFrame("EditBox", nil, restockAnchor, "InputBoxTemplate")
+	addBox:SetSize(180, 20)
+	addBox:SetPoint("TOPLEFT", 16, -86)
+	addBox:SetAutoFocus(false)
+	addBox:SetMaxLetters(80)
+	local addCount = CreateFrame("EditBox", nil, restockAnchor, "InputBoxTemplate")
+	addCount:SetSize(44, 20)
+	addCount:SetPoint("LEFT", addBox, "RIGHT", 8, 0)
+	addCount:SetAutoFocus(false)
+	addCount:SetNumeric(true)
+	addCount:SetMaxLetters(4)
+	addCount:SetText("1")
+	local addButton = CreateFrame("Button", nil, restockAnchor, "UIPanelButtonTemplate")
+	addButton:SetSize(48, 20)
+	addButton:SetPoint("LEFT", addCount, "RIGHT", 8, 0)
+	addButton:SetText("Add")
+	local function AddFromBox()
+		local itemID = ns:ItemIDFromArg(addBox:GetText() or "")
+		if not itemID then
+			return
+		end
+		local number = tonumber(addCount:GetText()) or 1
+		if number < 1 then
+			number = 1
+		end
+		ns:SetRestock(itemID, number)
+		addBox:SetText("")
+		addBox:ClearFocus()
+		SettingsUI:Refresh()
+	end
+	addButton:SetScript("OnClick", AddFromBox)
+	addBox:SetScript("OnEnterPressed", AddFromBox)
+	restockAnchor.addBox = addBox
+	restockAnchor.addBox = addBox
+
 	restockAnchor:EnableMouse(true)
 	restockAnchor:SetScript("OnMouseUp", function()
 		local infoType, itemID, link = GetCursorInfo()
@@ -682,8 +923,8 @@ function SettingsUI:Start()
 		if not itemID then
 			return
 		end
-		if not ns.db.vendor.restock.items[itemID] then
-			ns.db.vendor.restock.items[itemID] = 1
+		if not ns:RestockCount(itemID) then
+			ns:SetRestock(itemID, 1)
 		end
 		ClearCursor()
 		SettingsUI:Refresh()
@@ -712,8 +953,6 @@ function SettingsUI:Start()
 		end
 	end
 
-	ShowPage("options")
-
 	panel:SetScript("OnShow", function()
 		FitChild()
 		SettingsUI:Refresh()
@@ -726,11 +965,153 @@ function SettingsUI:Start()
 		end
 	end)
 
-	if Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterAddOnCategory then
+	local function MakeCanvas()
+		local frame = CreateFrame("Frame")
+		PaintPaper(frame)
+		local canvasScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+		canvasScroll:SetPoint("TOPLEFT", 12, -12)
+		canvasScroll:SetPoint("BOTTOMRIGHT", -28, 12)
+		local inner = CreateFrame("Frame", nil, canvasScroll)
+		inner:SetSize(560, 1)
+		canvasScroll:SetScrollChild(inner)
+		frame.inner = inner
+		return frame
+	end
+
+	local function MovePage(anchor, canvas)
+		anchor:SetParent(canvas.inner)
+		anchor:ClearAllPoints()
+		anchor:SetPoint("TOPLEFT", 0, -2)
+		anchor:SetPoint("RIGHT", -8, 0)
+		anchor:Show()
+	end
+
+	restockCanvas = MakeCanvas()
+	listsCanvas = MakeCanvas()
+	MovePage(restockAnchor, restockCanvas)
+	MovePage(listsAnchor, listsCanvas)
+
+	local profilesCanvas = MakeCanvas()
+	local using = profilesCanvas.inner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	using:SetPoint("TOPLEFT", 16, -16)
+	using:SetJustifyH("LEFT")
+	Ink(using, INK)
+	local nameBox = CreateFrame("EditBox", nil, profilesCanvas.inner, "InputBoxTemplate")
+	nameBox:SetSize(180, 20)
+	nameBox:SetPoint("TOPLEFT", 24, -44)
+	nameBox:SetAutoFocus(false)
+	nameBox:SetMaxLetters(32)
+	local newButton = CreateFrame("Button", nil, profilesCanvas.inner, "UIPanelButtonTemplate")
+	newButton:SetSize(64, 22)
+	newButton:SetPoint("LEFT", nameBox, "RIGHT", 8, 0)
+	newButton:SetText("New")
+	local resetButton = CreateFrame("Button", nil, profilesCanvas.inner, "UIPanelButtonTemplate")
+	resetButton:SetSize(64, 22)
+	resetButton:SetPoint("LEFT", newButton, "RIGHT", 8, 0)
+	resetButton:SetText("Reset")
+	local profileRows = {}
+	local function LayoutProfiles()
+		using:SetText("Using " .. (ns.db.profile or "Default"))
+		local names = {}
+		for profileName in pairs(ns:ProfileStore().profiles) do
+			names[#names + 1] = profileName
+		end
+		table.sort(names)
+		for i = 1, #names do
+			local row = profileRows[i]
+			if not row then
+				row = CreateFrame("Button", nil, profilesCanvas.inner)
+				row:SetHeight(20)
+				row:SetPoint("RIGHT", -16, 0)
+				row.label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+				row.label:SetPoint("LEFT", 0, 0)
+				row.delete = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+				row.delete:SetSize(64, 18)
+				row.delete:SetPoint("RIGHT", 0, 0)
+				row.delete:SetText("Delete")
+				profileRows[i] = row
+			end
+			local profileName = names[i]
+			row.label:SetText(profileName)
+			Ink(row.label, profileName == ns.db.profile and INK or INK_SOFT)
+			row:SetScript("OnClick", function()
+				ns:UseProfile(profileName)
+				LayoutProfiles()
+			end)
+			row.delete:SetEnabled(profileName ~= ns.db.profile)
+			row.delete:SetScript("OnClick", function()
+				ns:DeleteProfile(profileName)
+				LayoutProfiles()
+			end)
+			row:ClearAllPoints()
+			row:SetPoint("TOPLEFT", 16, -80 - (i - 1) * 24)
+			row:SetPoint("RIGHT", -16, 0)
+			row:Show()
+		end
+		for i = #names + 1, #profileRows do
+			profileRows[i]:Hide()
+		end
+		profilesCanvas.inner:SetHeight(100 + #names * 24)
+	end
+	newButton:SetScript("OnClick", function()
+		ns:SaveCurrentProfile(nameBox:GetText())
+		nameBox:SetText("")
+		nameBox:ClearFocus()
+		LayoutProfiles()
+	end)
+	resetButton:SetScript("OnClick", function()
+		ns:ResetCurrentProfile()
+		LayoutProfiles()
+	end)
+	profilesCanvas:SetScript("OnShow", LayoutProfiles)
+
+	local aboutCanvas = MakeCanvas()
+	local aboutText = aboutCanvas.inner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	aboutText:SetPoint("TOPLEFT", 16, -16)
+	aboutText:SetPoint("RIGHT", -16, 0)
+	aboutText:SetJustifyH("LEFT")
+	aboutText:SetJustifyV("TOP")
+	aboutText:SetWordWrap(true)
+	aboutText:SetText(table.concat({
+		"Zephyr " .. ns.VERSION,
+		"",
+		"1.1.0",
+		"Finished quests turn in, including one reward. New quests stay up.",
+		"A quest that costs gold stays up.",
+		"Gossip opens a lone vendor, binder, trainer, bank, or inn. A story line stays up.",
+		"Loot takes coin, quest items, and free loot that fits. A locked roll stays up.",
+		"Welcoming Campfire keeps you seated if you attack. Loot, a flight, or an interact still stands you.",
+		"Repair uses your own coin. Restock buys the count you are short, in one purchase.",
+		"Train all sits beside Train and buys what you can afford when you press it.",
+		"Poor items are confirmed when you delete them.",
+		"Zephyr does not release a corpse or accept a resurrection.",
+		"",
+		"1.0.0",
+		"First public release.",
+	}, "\n"))
+	Ink(aboutText, INK)
+	aboutText:SetHeight(420)
+	aboutCanvas.inner:SetHeight(460)
+
+	listsAnchor:Show()
+	restockAnchor:Show()
+	SettingsUI:Refresh()
+
+	if Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterCanvasLayoutSubcategory and Settings.RegisterAddOnCategory then
 		local ok, category = pcall(Settings.RegisterCanvasLayoutCategory, panel, "Zephyr")
 		if ok and category then
-			pcall(Settings.RegisterAddOnCategory, category)
 			SettingsUI.category = category
+			pcall(Settings.RegisterAddOnCategory, category)
+			local function AddSub(frame, name)
+				local added, sub = pcall(Settings.RegisterCanvasLayoutSubcategory, category, frame, name)
+				if added and sub then
+					pcall(Settings.RegisterAddOnCategory, sub)
+				end
+			end
+			AddSub(restockCanvas, "Restock")
+			AddSub(listsCanvas, "Lists")
+			AddSub(profilesCanvas, "Profiles")
+			AddSub(aboutCanvas, "About")
 		end
 	elseif InterfaceOptions_AddCategory then
 		InterfaceOptions_AddCategory(panel)

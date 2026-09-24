@@ -14,7 +14,7 @@ local function CanBuy(index, moneyLeft)
 	if not GetTrainerServiceInfo then
 		return false, 0
 	end
-	local _, _, category = GetTrainerServiceInfo(index)
+	local _, category = GetTrainerServiceInfo(index)
 	if category ~= "available" then
 		return false, 0
 	end
@@ -36,7 +36,7 @@ local function AffordableCount()
 		if canBuy then
 			count = count + 1
 			moneyLeft = moneyLeft - cost
-		elseif cost > moneyLeft and select(3, GetTrainerServiceInfo(index)) == "available" then
+		elseif cost > moneyLeft and select(2, GetTrainerServiceInfo(index)) == "available" then
 			break
 		end
 	end
@@ -49,7 +49,7 @@ local function TrainAll()
 	end
 	local moneyLeft = GetMoney and GetMoney() or 0
 	for index = 1, GetNumTrainerServices() do
-		local category = select(3, GetTrainerServiceInfo(index))
+		local category = select(2, GetTrainerServiceInfo(index))
 		if category == "available" then
 			local cost = ServiceCost(index)
 			if cost > moneyLeft then

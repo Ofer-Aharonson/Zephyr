@@ -38,4 +38,3 @@ First public release.
 - Coin marks on always-sell items
 - Settings panel with a one-line summary next to each option
 - `/zephyr` commands for toggles, keep lists, and always-sell lists
-- Hold Shift to skip the current window

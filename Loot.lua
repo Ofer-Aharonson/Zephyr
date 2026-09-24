@@ -11,6 +11,8 @@ local SLOT_CURRENCY = (Enum.LootSlotType and Enum.LootSlotType.Currency) or 3
 local REAGENT_BAG = 5
 local KEYRING = Enum.BagIndex and Enum.BagIndex.Keyring
 
+local lootTicker
+
 local holder = CreateFrame("Frame")
 holder:SetToplevel(true)
 holder:Hide()
@@ -25,6 +27,20 @@ local state = {
 	fishingPlayed = false,
 	bagFull = false,
 }
+
+local function StopLootTicker()
+	if lootTicker then
+		lootTicker:Cancel()
+		lootTicker = nil
+	end
+end
+
+local function ConfirmSoloSlot(slot)
+	if IsInGroup() or not ConfirmLootSlot then
+		return
+	end
+	ConfirmLootSlot(slot)
+end
 
 local function ResetState()
 	state.active = false
@@ -275,6 +291,7 @@ local function LootOneSlot(slot, takeItems)
 	if isQuestItem then
 		state.intended[slot] = true
 		LootSlot(slot)
+		ConfirmSoloSlot(slot)
 		state.looted[slot] = true
 		return true
 	end
@@ -290,6 +307,7 @@ local function LootOneSlot(slot, takeItems)
 	if slotType ~= SLOT_ITEM then
 		state.intended[slot] = true
 		LootSlot(slot)
+		ConfirmSoloSlot(slot)
 		state.looted[slot] = true
 		return true
 	end
@@ -301,6 +319,7 @@ local function LootOneSlot(slot, takeItems)
 
 	state.intended[slot] = true
 	LootSlot(slot)
+	ConfirmSoloSlot(slot)
 	state.looted[slot] = true
 	return true
 end
@@ -324,15 +343,26 @@ local function ProcessLoot()
 
 	local takeItems = ShouldTakeItems()
 	local skippedNoSpace = false
+	local slot = numItems
 	ns:Debug("autoloot " .. (takeItems and "unlocked" or "coin+quest") .. " slots=" .. numItems)
 
-	for slot = numItems, 1, -1 do
-		if not LootOneSlot(slot, takeItems) then
+	StopLootTicker()
+	lootTicker = C_Timer.NewTicker(0.033, function()
+		if not state.active then
+			StopLootTicker()
+			return
+		end
+		if slot < 1 then
+			StopLootTicker()
+			FinishPass(skippedNoSpace)
+			return
+		end
+		local current = slot
+		slot = slot - 1
+		if not LootOneSlot(current, takeItems) then
 			skippedNoSpace = true
 		end
-	end
-
-	FinishPass(skippedNoSpace)
+	end, numItems + 1)
 end
 
 function Loot:OnLootReady(autoLoot)
@@ -366,6 +396,12 @@ function Loot:OnSlotChanged(slot)
 		ShowLootFrame()
 		return
 	end
+	if lootTicker then
+		if state.looted[slot] and LootSlotHasItem(slot) then
+			LootSlot(slot)
+		end
+		return
+	end
 	if state.looted[slot] and LootSlotHasItem(slot) then
 		LootSlot(slot)
 	elseif LootSlotHasItem(slot) and not SlotIsLocked(slot) then
@@ -391,6 +427,7 @@ function Loot:OnError(_, message)
 end
 
 function Loot:OnLootClosed()
+	StopLootTicker()
 	ResetLootFrame()
 	ResetState()
 end

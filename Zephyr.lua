@@ -60,13 +60,7 @@ function ns:HoldSkip()
 end
 
 function ns:Waits()
-	if ns:HoldSkip() then
-		return true
-	end
-	if UnitOnTaxi and UnitOnTaxi() then
-		return true
-	end
-	return false
+	return ns:HoldSkip()
 end
 
 function ns:ItemIDFromArg(arg)
@@ -74,6 +68,48 @@ function ns:ItemIDFromArg(arg)
 		return nil
 	end
 	return tonumber(arg:match("item:(%d+)")) or tonumber(arg:match("(%d+)"))
+end
+
+function ns:RestockList()
+	local restock = self.db.vendor.restock
+	if type(restock.list) ~= "table" then
+		restock.list = {}
+	end
+	return restock.list
+end
+
+function ns:RestockCount(itemID)
+	itemID = tonumber(itemID)
+	if not itemID then
+		return nil
+	end
+	for _, entry in ipairs(self:RestockList()) do
+		if entry.id == itemID then
+			return entry.count
+		end
+	end
+end
+
+function ns:SetRestock(itemID, count)
+	itemID = tonumber(itemID)
+	count = tonumber(count)
+	if not itemID then
+		return
+	end
+	local list = self:RestockList()
+	for index, entry in ipairs(list) do
+		if entry.id == itemID then
+			if not count or count < 1 then
+				table.remove(list, index)
+			else
+				entry.count = count
+			end
+			return
+		end
+	end
+	if count and count > 0 then
+		list[#list + 1] = { id = itemID, count = count }
+	end
 end
 
 function ns:ItemLabel(itemID)
@@ -153,12 +189,103 @@ function ns:InitDB()
 	if type(ns.db.vendor.restock) ~= "table" then
 		ns.db.vendor.restock = { enabled = true, items = {} }
 	end
-	if type(ns.db.vendor.restock.items) ~= "table" then
-		ns.db.vendor.restock.items = {}
+	if type(ns.db.vendor.restock.list) ~= "table" then
+		ns.db.vendor.restock.list = {}
+	end
+	if type(ns.db.vendor.restock.items) == "table" then
+		for key, count in pairs(ns.db.vendor.restock.items) do
+			ns:SetRestock(key, count)
+		end
+		ns.db.vendor.restock.items = nil
 	end
 	if type(ns.db.vendor.repairBelow) ~= "number" then
 		ns.db.vendor.repairBelow = 100
 	end
+	if type(ns.db.profile) ~= "string" or ns.db.profile == "" then
+		ns.db.profile = "Default"
+	end
+	ns:EnsureProfiles()
+end
+
+local function DeepCopy(src)
+	if type(src) ~= "table" then
+		return src
+	end
+	local out = {}
+	for key, value in pairs(src) do
+		out[key] = DeepCopy(value)
+	end
+	return out
+end
+
+function ns:ProfileStore()
+	if type(ZephyrProfiles) ~= "table" then
+		ZephyrProfiles = { profiles = {} }
+	end
+	if type(ZephyrProfiles.profiles) ~= "table" then
+		ZephyrProfiles.profiles = {}
+	end
+	return ZephyrProfiles
+end
+
+function ns:EnsureProfiles()
+	local store = ns:ProfileStore()
+	local name = ns.db.profile or "Default"
+	if type(store.profiles[name]) ~= "table" then
+		store.profiles[name] = DeepCopy(ns.db)
+	end
+end
+
+function ns:SaveCurrentProfile(name)
+	name = name and name:gsub("^%s+", ""):gsub("%s+$", "") or ""
+	if name == "" then
+		return
+	end
+	ns:ProfileStore().profiles[name] = DeepCopy(ns.db)
+	ns.db.profile = name
+	ns:ProfileStore().profiles[name].profile = name
+end
+
+function ns:UseProfile(name)
+	if name ~= ns.db.profile then
+		ns:SaveCurrentProfile(ns.db.profile)
+	end
+	local stored = ns:ProfileStore().profiles[name]
+	if type(stored) ~= "table" then
+		return
+	end
+	local copy = DeepCopy(stored)
+	copy.profile = name
+	for key in pairs(ns.db) do
+		ns.db[key] = nil
+	end
+	for key, value in pairs(copy) do
+		ns.db[key] = value
+	end
+	ns:InitDB()
+	ns:OnOptionsChanged()
+end
+
+function ns:DeleteProfile(name)
+	if name == ns.db.profile then
+		return
+	end
+	ns:ProfileStore().profiles[name] = nil
+end
+
+function ns:ResetCurrentProfile()
+	local name = ns.db.profile or "Default"
+	local fresh = DeepCopy(defaults)
+	fresh.profile = name
+	for key in pairs(ns.db) do
+		ns.db[key] = nil
+	end
+	for key, value in pairs(fresh) do
+		ns.db[key] = value
+	end
+	ns:InitDB()
+	ns:SaveCurrentProfile(name)
+	ns:OnOptionsChanged()
 end
 
 local function ModuleStatus(module)
@@ -349,7 +476,14 @@ end
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("ADDON_LOADED")
 loader:RegisterEvent("PLAYER_LOGIN")
+loader:RegisterEvent("PLAYER_LOGOUT")
 loader:SetScript("OnEvent", function(_, event, name)
+	if event == "PLAYER_LOGOUT" then
+		if ns.db then
+			ns:SaveCurrentProfile(ns.db.profile)
+		end
+		return
+	end
 	if event == "ADDON_LOADED" then
 		if name == addonName then
 			ns:InitDB()

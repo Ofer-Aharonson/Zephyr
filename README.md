@@ -2,7 +2,7 @@
 
 Quality-of-life clicks for World of Warcraft Classic. Zephyr takes the obvious action: loot, sell junk, repair, open mail, hand in a finished quest, and a few combat and travel confirms.
 
-Most options start on. Hold **Shift** to skip the current window.
+Most options start on.
 
 Tested on Classic Beta (`Interface 16001`).
 
@@ -55,7 +55,7 @@ The folder name must be `Zephyr`, and it must contain `Zephyr.toc`.
 
 **Summary**
 
-Fast loot, vendors, mail, quests, and other obvious-click quality of life. Hold Shift to skip.
+Fast loot, vendors, mail, quests, and other obvious-click quality of life.
 
 **Description**
 
@@ -65,7 +65,7 @@ It loots coin, quest items, and free loot that fits, sells junk, and repairs wit
 
 It can also release in battlegrounds, accept resurrections, skip combat resurrections, skip cinematics, dismount or stand when the game requires it, and confirm poor-quality item deletes.
 
-Most options start on. Hold Shift to skip the current window. Toggle anything from Options → AddOns → Zephyr, or with `/zephyr`.
+Most options start on. Toggle anything from Options → AddOns → Zephyr, or with `/zephyr`.
 
 Always-sell and never-sell lists:
 
