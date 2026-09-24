@@ -176,10 +176,9 @@ function ns:IsHardcore()
 	return false
 end
 
-function ns:InitDB()
-	ZephyrDB = CopyDefaults(defaults, ZephyrDB)
-	MigrateDB(ZephyrDB)
-	ns.db = ZephyrDB
+local function BindProfile()
+	ns.db = ns.acedb.profile
+	MigrateDB(ns.db)
 	if type(ns.db.vendor.neverSell) ~= "table" then
 		ns.db.vendor.neverSell = {}
 	end
@@ -187,7 +186,7 @@ function ns:InitDB()
 		ns.db.vendor.alwaysSell = {}
 	end
 	if type(ns.db.vendor.restock) ~= "table" then
-		ns.db.vendor.restock = { enabled = true, items = {} }
+		ns.db.vendor.restock = { enabled = true, list = {} }
 	end
 	if type(ns.db.vendor.restock.list) ~= "table" then
 		ns.db.vendor.restock.list = {}
@@ -201,91 +200,38 @@ function ns:InitDB()
 	if type(ns.db.vendor.repairBelow) ~= "number" then
 		ns.db.vendor.repairBelow = 100
 	end
-	if type(ns.db.profile) ~= "string" or ns.db.profile == "" then
-		ns.db.profile = "Default"
-	end
-	ns:EnsureProfiles()
 end
 
-local function DeepCopy(src)
-	if type(src) ~= "table" then
-		return src
-	end
-	local out = {}
-	for key, value in pairs(src) do
-		out[key] = DeepCopy(value)
-	end
-	return out
-end
-
-function ns:ProfileStore()
-	if type(ZephyrProfiles) ~= "table" then
-		ZephyrProfiles = { profiles = {} }
-	end
-	if type(ZephyrProfiles.profiles) ~= "table" then
-		ZephyrProfiles.profiles = {}
-	end
-	return ZephyrProfiles
-end
-
-function ns:EnsureProfiles()
-	local store = ns:ProfileStore()
-	local name = ns.db.profile or "Default"
-	if type(store.profiles[name]) ~= "table" then
-		store.profiles[name] = DeepCopy(ns.db)
-	end
-end
-
-function ns:SaveCurrentProfile(name)
-	name = name and name:gsub("^%s+", ""):gsub("%s+$", "") or ""
-	if name == "" then
+function ns:InitDB()
+	if ns.acedb then
+		BindProfile()
 		return
 	end
-	ns:ProfileStore().profiles[name] = DeepCopy(ns.db)
-	ns.db.profile = name
-	ns:ProfileStore().profiles[name].profile = name
-end
-
-function ns:UseProfile(name)
-	if name ~= ns.db.profile then
-		ns:SaveCurrentProfile(ns.db.profile)
+	local old
+	if type(ZephyrDB) == "table" and ZephyrDB.vendor and not ZephyrDB.profiles then
+		old = ZephyrDB
 	end
-	local stored = ns:ProfileStore().profiles[name]
-	if type(stored) ~= "table" then
-		return
+	ns.acedb = LibStub("AceDB-3.0"):New("ZephyrProfilesDB", { profile = defaults, global = { importedLegacy = false } }, "Default")
+	ns.acedb.RegisterCallback(ns, "OnProfileChanged", function()
+		BindProfile()
+		ns:OnOptionsChanged()
+	end)
+	ns.acedb.RegisterCallback(ns, "OnProfileCopied", function()
+		BindProfile()
+		ns:OnOptionsChanged()
+	end)
+	ns.acedb.RegisterCallback(ns, "OnProfileReset", function()
+		BindProfile()
+		ns:OnOptionsChanged()
+	end)
+	BindProfile()
+	if old and ns.acedb.global and not ns.acedb.global.importedLegacy then
+		for key, value in pairs(old) do
+			ns.db[key] = value
+		end
+		ns.acedb.global.importedLegacy = true
+		BindProfile()
 	end
-	local copy = DeepCopy(stored)
-	copy.profile = name
-	for key in pairs(ns.db) do
-		ns.db[key] = nil
-	end
-	for key, value in pairs(copy) do
-		ns.db[key] = value
-	end
-	ns:InitDB()
-	ns:OnOptionsChanged()
-end
-
-function ns:DeleteProfile(name)
-	if name == ns.db.profile then
-		return
-	end
-	ns:ProfileStore().profiles[name] = nil
-end
-
-function ns:ResetCurrentProfile()
-	local name = ns.db.profile or "Default"
-	local fresh = DeepCopy(defaults)
-	fresh.profile = name
-	for key in pairs(ns.db) do
-		ns.db[key] = nil
-	end
-	for key, value in pairs(fresh) do
-		ns.db[key] = value
-	end
-	ns:InitDB()
-	ns:SaveCurrentProfile(name)
-	ns:OnOptionsChanged()
 end
 
 local function ModuleStatus(module)
@@ -476,14 +422,7 @@ end
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("ADDON_LOADED")
 loader:RegisterEvent("PLAYER_LOGIN")
-loader:RegisterEvent("PLAYER_LOGOUT")
 loader:SetScript("OnEvent", function(_, event, name)
-	if event == "PLAYER_LOGOUT" then
-		if ns.db then
-			ns:SaveCurrentProfile(ns.db.profile)
-		end
-		return
-	end
 	if event == "ADDON_LOADED" then
 		if name == addonName then
 			ns:InitDB()

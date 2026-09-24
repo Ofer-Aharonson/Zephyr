@@ -510,14 +510,14 @@ local function LayoutLists()
 	y = FillList("Sell", ns.db.vendor.alwaysSell, y, index)
 	listsAnchor:SetHeight(-y + 8)
 	if listsCanvas and listsCanvas.inner then
-		listsCanvas.inner:SetHeight(listsAnchor:GetHeight() + 12)
+		listsCanvas.inner:SetHeight(listsAnchor:GetHeight() + 56)
 	end
 	if child then
 		child:SetHeight(-contentY + 12)
 	end
 end
 
-local function PaintPaper(parent)
+local function PaintPaper(parent, withIcon)
 	local parchment = parent:CreateTexture(nil, "BACKGROUND")
 	parchment:SetPoint("TOPLEFT", 6, -6)
 	parchment:SetPoint("BOTTOMRIGHT", -6, 6)
@@ -533,6 +533,9 @@ local function PaintPaper(parent)
 	})
 	border:EnableMouse(false)
 
+	if not withIcon then
+		return
+	end
 	local portrait = parent:CreateTexture(nil, "ARTWORK")
 	portrait:SetPoint("TOPLEFT", 18, -16)
 	portrait:SetSize(52, 52)
@@ -721,39 +724,22 @@ function SettingsUI:Start()
 	end
 
 	panel = CreateFrame("Frame")
-	panel.name = "Zephyr"
+	panel.name = "General"
 	panel:Hide()
 	PaintPaper(panel)
 
-	local title = panel:CreateFontString(nil, "ARTWORK", "QuestFont_Huge")
-	title:SetPoint("TOPLEFT", 84, -22)
-	title:SetText("Zephyr")
-	Ink(title, INK)
-
-	local version = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	version:SetPoint("LEFT", title, "RIGHT", 10, -2)
-	version:SetText("v" .. ns.VERSION)
-	Ink(version, INK_SOFT)
-
 	local scroll = CreateFrame("ScrollFrame", "ZephyrSettingsScroll", panel, "UIPanelScrollFrameTemplate")
-	scroll:SetPoint("TOPLEFT", 20, -52)
+	scroll:SetPoint("TOPLEFT", 16, -12)
 	scroll:SetPoint("BOTTOMRIGHT", -34, 18)
 
 	child = CreateFrame("Frame", nil, scroll)
 	child:SetSize(560, 1)
 	scroll:SetScrollChild(child)
 
-	local y = -2
-	for s = 1, #SECTIONS do
-		local section = SECTIONS[s]
-		y = y - AddHeader(child, section.title, y)
-		for i = 1, #section.items do
-			y = y - AddRow(child, section.items[i], y)
-		end
-		y = y - 8
-	end
-
-	contentY = y
+	contentY = -2
+	local optionPages = {}
+	local markSpec
+	local repairFrame
 	listsAnchor = CreateFrame("Frame", nil, child)
 	listsAnchor:SetPoint("TOPLEFT", 0, -2)
 	listsAnchor:SetPoint("RIGHT", -8, 0)
@@ -964,11 +950,11 @@ function SettingsUI:Start()
 		end
 	end)
 
-	local function MakeCanvas()
+	local function MakeCanvas(withIcon)
 		local frame = CreateFrame("Frame")
-		PaintPaper(frame)
+		PaintPaper(frame, withIcon)
 		local canvasScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-		canvasScroll:SetPoint("TOPLEFT", 12, -12)
+		canvasScroll:SetPoint("TOPLEFT", 12, withIcon and -78 or -12)
 		canvasScroll:SetPoint("BOTTOMRIGHT", -28, 12)
 		local inner = CreateFrame("Frame", nil, canvasScroll)
 		inner:SetSize(560, 1)
@@ -990,93 +976,89 @@ function SettingsUI:Start()
 	MovePage(restockAnchor, restockCanvas)
 	MovePage(listsAnchor, listsCanvas)
 
-	local profilesCanvas = MakeCanvas()
-	local using = profilesCanvas.inner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	using:SetPoint("TOPLEFT", 16, -16)
-	using:SetJustifyH("LEFT")
-	Ink(using, INK)
-	local nameBox = CreateFrame("EditBox", nil, profilesCanvas.inner, "InputBoxTemplate")
-	nameBox:SetSize(180, 20)
-	nameBox:SetPoint("TOPLEFT", 24, -44)
-	nameBox:SetAutoFocus(false)
-	nameBox:SetMaxLetters(32)
-	local newButton = CreateFrame("Button", nil, profilesCanvas.inner, "UIPanelButtonTemplate")
-	newButton:SetSize(64, 22)
-	newButton:SetPoint("LEFT", nameBox, "RIGHT", 8, 0)
-	newButton:SetText("New")
-	local resetButton = CreateFrame("Button", nil, profilesCanvas.inner, "UIPanelButtonTemplate")
-	resetButton:SetSize(64, 22)
-	resetButton:SetPoint("LEFT", newButton, "RIGHT", 8, 0)
-	resetButton:SetText("Reset")
-	local profileRows = {}
-	local function LayoutProfiles()
-		using:SetText("Using " .. (ns.db.profile or "Default"))
-		local names = {}
-		for profileName in pairs(ns:ProfileStore().profiles) do
-			names[#names + 1] = profileName
-		end
-		table.sort(names)
-		for i = 1, #names do
-			local row = profileRows[i]
-			if not row then
-				row = CreateFrame("Button", nil, profilesCanvas.inner)
-				row:SetHeight(20)
-				row:SetPoint("RIGHT", -16, 0)
-				row.label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-				row.label:SetPoint("LEFT", 0, 0)
-				row.delete = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-				row.delete:SetSize(64, 18)
-				row.delete:SetPoint("RIGHT", 0, 0)
-				row.delete:SetText("Delete")
-				profileRows[i] = row
+	local pageName = {
+		["Faster autoloot"] = "Loot",
+		["Sell junk"] = "Sell",
+		["Repair"] = "Repair",
+		["Open mail"] = "Mail",
+		["Quests"] = "Quests",
+		["Single gossip"] = "Gossip",
+		["Skip cinematics"] = "Cinematics",
+		["Dismount and stand"] = "Stand",
+		["Confirm grey deletes"] = "Delete",
+		["Debug"] = "Debug",
+	}
+	for s = 1, #SECTIONS do
+		for i = 1, #SECTIONS[s].items do
+			local spec = SECTIONS[s].items[i]
+			if spec.name == "Mark always-sell" then
+				markSpec = spec
+			else
+				local frame = MakeCanvas(false)
+				local rowY = -12
+				local nextY = rowY - AddRow(frame.inner, spec, rowY)
+				if spec.name == "Repair" and repairRow then
+					repairRow:SetParent(frame.inner)
+					repairRow:ClearAllPoints()
+					repairRow:SetPoint("TOPLEFT", 8, nextY - 8)
+					repairRow:SetPoint("RIGHT", -12, 0)
+					nextY = nextY - 40
+					repairFrame = frame
+				end
+				frame.inner:SetHeight(-nextY + 24)
+				optionPages[#optionPages + 1] = { name = pageName[spec.name] or spec.name, frame = frame }
 			end
-			local profileName = names[i]
-			row.label:SetText(profileName)
-			Ink(row.label, profileName == ns.db.profile and INK or INK_SOFT)
-			row:SetScript("OnClick", function()
-				ns:UseProfile(profileName)
-				LayoutProfiles()
-			end)
-			row.delete:SetEnabled(profileName ~= ns.db.profile)
-			row.delete:SetScript("OnClick", function()
-				ns:DeleteProfile(profileName)
-				LayoutProfiles()
-			end)
-			row:ClearAllPoints()
-			row:SetPoint("TOPLEFT", 16, -80 - (i - 1) * 24)
-			row:SetPoint("RIGHT", -16, 0)
-			row:Show()
 		end
-		for i = #names + 1, #profileRows do
-			profileRows[i]:Hide()
-		end
-		profilesCanvas.inner:SetHeight(100 + #names * 24)
 	end
-	newButton:SetScript("OnClick", function()
-		ns:SaveCurrentProfile(nameBox:GetText())
-		nameBox:SetText("")
-		nameBox:ClearFocus()
-		LayoutProfiles()
-	end)
-	resetButton:SetScript("OnClick", function()
-		ns:ResetCurrentProfile()
-		LayoutProfiles()
-	end)
-	profilesCanvas:SetScript("OnShow", LayoutProfiles)
+	if markSpec then
+		local nextY = -8 - AddRow(listsCanvas.inner, markSpec, -8)
+		listsAnchor:ClearAllPoints()
+		listsAnchor:SetPoint("TOPLEFT", 0, nextY - 8)
+		listsAnchor:SetPoint("RIGHT", -8, 0)
+	end
 
-	local aboutCanvas = MakeCanvas()
-	local aboutText = aboutCanvas.inner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	aboutText:SetPoint("TOPLEFT", 16, -16)
-	aboutText:SetPoint("RIGHT", -16, 0)
-	aboutText:SetJustifyH("LEFT")
-	aboutText:SetJustifyV("TOP")
-	aboutText:SetWordWrap(true)
-	aboutText:SetText(table.concat({
-		"Zephyr " .. ns.VERSION,
-		"",
-		"1.1.0",
-		"Finished quests turn in, including one reward. New quests stay up.",
-		"A quest that costs gold stays up.",
+	local aboutCanvas = MakeCanvas(false)
+	local aboutTitle = aboutCanvas.inner:CreateFontString(nil, "ARTWORK", "QuestFont_Huge")
+	aboutTitle:SetPoint("TOPLEFT", 16, -16)
+	aboutTitle:SetText("Zephyr")
+	Ink(aboutTitle, { 0.9, 0.8, 0.5 })
+	local aboutNotes = aboutCanvas.inner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	aboutNotes:SetPoint("TOPLEFT", aboutTitle, "BOTTOMLEFT", 0, -8)
+	aboutNotes:SetPoint("RIGHT", -16, 0)
+	aboutNotes:SetJustifyH("LEFT")
+	aboutNotes:SetWordWrap(true)
+	aboutNotes:SetText("Fast loot, vendors, mail, quests, and other obvious clicks.")
+	Ink(aboutNotes, INK)
+	local aboutY = -70
+	local function AboutLine(label, value)
+		local name = aboutCanvas.inner:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+		name:SetPoint("TOPLEFT", 16, aboutY)
+		name:SetWidth(110)
+		name:SetJustifyH("LEFT")
+		name:SetText(label)
+		local text = aboutCanvas.inner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+		text:SetPoint("LEFT", name, "RIGHT", 8, 0)
+		text:SetPoint("RIGHT", -16, 0)
+		text:SetJustifyH("LEFT")
+		text:SetText(value)
+		Ink(text, INK)
+		aboutY = aboutY - 18
+	end
+	AboutLine("Version", ns.VERSION)
+	AboutLine("Author", "Ofer Aharonson")
+	AboutLine("Category", "Inventory")
+	AboutLine("Website", "curseforge.com/wow/addons/zephyr")
+	local changesHeader = aboutCanvas.inner:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+	changesHeader:SetPoint("TOPLEFT", 16, aboutY - 16)
+	changesHeader:SetText("1.1.0")
+	local changes = aboutCanvas.inner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	changes:SetPoint("TOPLEFT", changesHeader, "BOTTOMLEFT", 0, -8)
+	changes:SetPoint("RIGHT", -16, 0)
+	changes:SetJustifyH("LEFT")
+	changes:SetJustifyV("TOP")
+	changes:SetWordWrap(true)
+	changes:SetText(table.concat({
+		"Finished quests turn in, including one reward. New quests stay up. A turn-in that costs gold stays up.",
 		"Gossip opens a lone vendor, binder, trainer, bank, or inn. A story line stays up.",
 		"Loot takes coin, quest items, and free loot that fits. A locked roll stays up.",
 		"Welcoming Campfire keeps you seated if you attack. Loot, a flight, or an interact still stands you.",
@@ -1084,20 +1066,18 @@ function SettingsUI:Start()
 		"Train all sits beside Train and buys what you can afford when you press it.",
 		"Poor items are confirmed when you delete them.",
 		"Zephyr does not release a corpse or accept a resurrection.",
-		"",
-		"1.0.0",
-		"First public release.",
-	}, "\n"))
-	Ink(aboutText, INK)
-	aboutText:SetHeight(420)
-	aboutCanvas.inner:SetHeight(460)
+		"Each mechanism has its own page under Zephyr.",
+	}, "\n\n"))
+	Ink(changes, INK)
+	changes:SetHeight(360)
+	aboutCanvas.inner:SetHeight(560)
 
 	listsAnchor:Show()
 	restockAnchor:Show()
 	SettingsUI:Refresh()
 
 	if Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterCanvasLayoutSubcategory and Settings.RegisterAddOnCategory then
-		local ok, category = pcall(Settings.RegisterCanvasLayoutCategory, panel, "Zephyr")
+		local ok, category = pcall(Settings.RegisterCanvasLayoutCategory, aboutCanvas, "Zephyr")
 		if ok and category then
 			SettingsUI.category = category
 			pcall(Settings.RegisterAddOnCategory, category)
@@ -1107,10 +1087,16 @@ function SettingsUI:Start()
 					pcall(Settings.RegisterAddOnCategory, sub)
 				end
 			end
+			for i = 1, #optionPages do
+				AddSub(optionPages[i].frame, optionPages[i].name)
+			end
 			AddSub(restockCanvas, "Restock")
 			AddSub(listsCanvas, "Lists")
-			AddSub(profilesCanvas, "Profiles")
-			AddSub(aboutCanvas, "About")
+			local dialog = LibStub("AceConfigDialog-3.0")
+			dialog.BlizOptionsIDMap = dialog.BlizOptionsIDMap or {}
+			dialog.BlizOptionsIDMap["Zephyr"] = category.ID
+			LibStub("AceConfig-3.0"):RegisterOptionsTable("ZephyrProfiles", LibStub("AceDBOptions-3.0"):GetOptionsTable(ns.acedb))
+			dialog:AddToBlizOptions("ZephyrProfiles", "Profiles", "Zephyr")
 		end
 	elseif InterfaceOptions_AddCategory then
 		InterfaceOptions_AddCategory(panel)

@@ -1,16 +1,24 @@
 ## Interface: 16001
 ## Title: Zephyr
 ## Notes: Fast loot, vendors, mail, quests, and other obvious-click QoL.
-## Author: Ofer
+## Author: Ofer Aharonson
 ## Version: 1.1.0
 ## DefaultState: enabled
 ## IconTexture: Interface\AddOns\Zephyr\Media\icon
-## SavedVariables: ZephyrProfiles
+## SavedVariables: ZephyrProfilesDB
 ## SavedVariablesPerCharacter: ZephyrDB
 ## Category: Inventory
 ## X-License: MIT
 ## X-Curse-Project-ID: 1703154
 ## X-Website: https://www.curseforge.com/wow/addons/zephyr
+
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\AceConsole-3.0\AceConsole-3.0.xml
+Libs\AceGUI-3.0\AceGUI-3.0.xml
+Libs\AceConfig-3.0\AceConfig-3.0.xml
+Libs\AceDB-3.0\AceDB-3.0.xml
+Libs\AceDBOptions-3.0\AceDBOptions-3.0.xml
 
 Zephyr.lua
 Loot.lua
