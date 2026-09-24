@@ -7,7 +7,7 @@ local NAME_WIDTH = 168
 local ROW_HEIGHT = 30
 local INK = { 0.22, 0.12, 0.05 }
 local INK_SOFT = { 0.40, 0.26, 0.13 }
-local SAVE_NOTE = "Forever has a bug and will not keep these settings after a reload, and will work for this session only.\nIt will be fixed once the game is live."
+local SAVE_NOTE = "WoW Forever beta has a bug and will not keep these settings after a reload. They work for this session only.\nIt will be fixed once the game is live."
 
 local panel
 local child
@@ -15,6 +15,7 @@ local listsAnchor
 local restockAnchor
 local listsCanvas
 local restockCanvas
+local profilesCanvas
 local rows = {}
 local sectionBits = {}
 local page = "options"
@@ -295,6 +296,27 @@ local function ConfirmRemove(label, listName, apply)
 		}
 	end
 	StaticPopup_Show("ZEPHYR_REMOVE_LIST_ITEM", label, listName, { apply = apply })
+end
+
+local function ConfirmAsk(sentence, apply)
+	if not StaticPopupDialogs.ZEPHYR_CONFIRM then
+		StaticPopupDialogs.ZEPHYR_CONFIRM = {
+			button1 = YES,
+			button2 = CANCEL,
+			OnAccept = function(dialog, data)
+				data = data or (dialog and dialog.data)
+				if data and data.apply then
+					data.apply()
+				end
+			end,
+			timeout = 0,
+			whileDead = true,
+			hideOnEscape = true,
+			preferredIndex = 3,
+		}
+	end
+	StaticPopupDialogs.ZEPHYR_CONFIRM.text = sentence
+	StaticPopup_Show("ZEPHYR_CONFIRM", nil, nil, { apply = apply })
 end
 
 local function ShowItemLink(row, itemID, list, listName)
@@ -706,6 +728,50 @@ local function LayoutRestock()
 	end
 end
 
+local function LayoutProfiles()
+	if not profilesCanvas or not profilesCanvas.anchor or not ns.db then
+		return
+	end
+	local anchor = profilesCanvas.anchor
+	anchor.current:SetText("This character uses " .. ns:CurrentProfile() .. ".")
+	local names = ns:ProfileNames()
+	local y = -230
+	for i = 1, #names do
+		local row = anchor.rows[i]
+		if not row then
+			row = CreateFrame("Button", nil, anchor)
+			row:SetHeight(22)
+			row.label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+			row.label:SetPoint("LEFT", 16, 0)
+			row.label:SetJustifyH("LEFT")
+			row:SetScript("OnClick", function(self)
+				anchor.box:SetText(self.profileName or "")
+				anchor.box:ClearFocus()
+			end)
+			anchor.rows[i] = row
+		end
+		row.profileName = names[i]
+		row.label:SetText(names[i])
+		if names[i] == ns:CurrentProfile() then
+			Ink(row.label, { 0.9, 0.8, 0.5 })
+		else
+			Ink(row.label, INK)
+		end
+		row:ClearAllPoints()
+		row:SetPoint("TOPLEFT", 0, y)
+		row:SetPoint("RIGHT", -8, 0)
+		row:Show()
+		y = y - 24
+	end
+	for i = #names + 1, #anchor.rows do
+		anchor.rows[i]:Hide()
+	end
+	anchor:SetHeight(-y + 8)
+	if profilesCanvas.inner then
+		profilesCanvas.inner:SetHeight(anchor:GetHeight() + 12)
+	end
+end
+
 function SettingsUI:Refresh()
 	if not ns.db or not panel then
 		return
@@ -713,6 +779,7 @@ function SettingsUI:Refresh()
 	RefreshChecks()
 	LayoutLists()
 	LayoutRestock()
+	LayoutProfiles()
 	if panel.repairRow and panel.repairRow.edit and not panel.repairRow.edit:HasFocus() then
 		panel.repairRow.edit:SetText(tostring(ns.db.vendor.repairBelow or 100))
 	end
@@ -973,8 +1040,96 @@ function SettingsUI:Start()
 
 	restockCanvas = MakeCanvas()
 	listsCanvas = MakeCanvas()
+	profilesCanvas = MakeCanvas()
 	MovePage(restockAnchor, restockCanvas)
 	MovePage(listsAnchor, listsCanvas)
+
+	local profilesAnchor = CreateFrame("Frame", nil, profilesCanvas.inner)
+	profilesAnchor:SetPoint("TOPLEFT", 0, -2)
+	profilesAnchor:SetPoint("RIGHT", -8, 0)
+	profilesAnchor:SetHeight(160)
+	profilesAnchor.rows = {}
+	profilesCanvas.anchor = profilesAnchor
+	local profileBanner = CreateFrame("Frame", nil, profilesAnchor)
+	profileBanner:SetPoint("TOPLEFT", 8, -4)
+	profileBanner:SetPoint("RIGHT", -8, 0)
+	profileBanner:SetHeight(70)
+	local profileWash = profileBanner:CreateTexture(nil, "BACKGROUND")
+	profileWash:SetAllPoints()
+	profileWash:SetColorTexture(0.55, 0.28, 0.08, 0.22)
+	local profileBannerText = profileBanner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	profileBannerText:SetPoint("TOPLEFT", 8, -6)
+	profileBannerText:SetPoint("BOTTOMRIGHT", -8, 6)
+	profileBannerText:SetJustifyH("LEFT")
+	profileBannerText:SetJustifyV("MIDDLE")
+	profileBannerText:SetWordWrap(true)
+	profileBannerText:SetText(SAVE_NOTE)
+	Ink(profileBannerText, INK)
+	local currentLine = profilesAnchor:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	currentLine:SetPoint("TOPLEFT", 8, -80)
+	currentLine:SetPoint("RIGHT", -12, 0)
+	currentLine:SetJustifyH("LEFT")
+	Ink(currentLine, INK)
+	profilesAnchor.current = currentLine
+	local profileBox = CreateFrame("EditBox", nil, profilesAnchor, "InputBoxTemplate")
+	profileBox:SetSize(180, 20)
+	profileBox:SetPoint("TOPLEFT", 16, -102)
+	profileBox:SetAutoFocus(false)
+	profileBox:SetMaxLetters(50)
+	profilesAnchor.box = profileBox
+	local function TypedName()
+		return profileBox:GetText() or ""
+	end
+	local function ProfileButton(text, x, click)
+		local button = CreateFrame("Button", nil, profilesAnchor, "UIPanelButtonTemplate")
+		button:SetSize(64, 22)
+		button:SetPoint("TOPLEFT", 16 + x, -128)
+		button:SetText(text)
+		button:SetScript("OnClick", click)
+		return button
+	end
+	ProfileButton("New", 0, function()
+		if ns:NewProfile(TypedName()) then
+			profileBox:SetText("")
+			profileBox:ClearFocus()
+		end
+	end)
+	ProfileButton("Use", 72, function()
+		if ns:UseProfile(TypedName()) then
+			profileBox:SetText("")
+			profileBox:ClearFocus()
+		end
+	end)
+	ProfileButton("Copy", 144, function()
+		if ns:CopyProfile(TypedName()) then
+			profileBox:SetText("")
+			profileBox:ClearFocus()
+		end
+	end)
+	ProfileButton("Delete", 216, function()
+		local name = TypedName()
+		if name == "" or name == ns:CurrentProfile() then
+			return
+		end
+		ConfirmAsk("Delete the " .. name .. " profile?", function()
+			if ns:DeleteProfile(name) then
+				profileBox:SetText("")
+				SettingsUI:Refresh()
+			end
+		end)
+	end)
+	ProfileButton("Reset", 288, function()
+		ConfirmAsk("Reset " .. ns:CurrentProfile() .. " to the defaults?", function()
+			ns:ResetProfile()
+		end)
+	end)
+	local profileHint = profilesAnchor:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	profileHint:SetPoint("TOPLEFT", 8, -158)
+	profileHint:SetPoint("RIGHT", -12, 0)
+	profileHint:SetJustifyH("LEFT")
+	profileHint:SetWordWrap(true)
+	profileHint:SetText("Click a name to fill the box. New starts from the defaults. Use switches to one that exists. Copy replaces this one. Delete removes a profile this character is not using. Reset restores the defaults here.")
+	Ink(profileHint, INK_SOFT)
 
 	local pageName = {
 		["Faster autoloot"] = "Loot",
@@ -1066,7 +1221,7 @@ function SettingsUI:Start()
 		"Train all sits beside Train and buys what you can afford when you press it.",
 		"Poor items are confirmed when you delete them.",
 		"Zephyr does not release a corpse or accept a resurrection.",
-		"Each mechanism has its own page under Zephyr.",
+		"Each mechanism has its own page under Zephyr. Profiles are Zephyr's own: new, use, copy, delete, and reset.",
 	}, "\n\n"))
 	Ink(changes, INK)
 	changes:SetHeight(360)
@@ -1092,11 +1247,7 @@ function SettingsUI:Start()
 			end
 			AddSub(restockCanvas, "Restock")
 			AddSub(listsCanvas, "Lists")
-			local dialog = LibStub("AceConfigDialog-3.0")
-			dialog.BlizOptionsIDMap = dialog.BlizOptionsIDMap or {}
-			dialog.BlizOptionsIDMap["Zephyr"] = category.ID
-			LibStub("AceConfig-3.0"):RegisterOptionsTable("ZephyrProfiles", LibStub("AceDBOptions-3.0"):GetOptionsTable(ns.acedb))
-			dialog:AddToBlizOptions("ZephyrProfiles", "Profiles", "Zephyr")
+			AddSub(profilesCanvas, "Profiles")
 		end
 	elseif InterfaceOptions_AddCategory then
 		InterfaceOptions_AddCategory(panel)

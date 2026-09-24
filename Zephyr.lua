@@ -176,9 +176,96 @@ function ns:IsHardcore()
 	return false
 end
 
+local characterKey
+
+local function CharacterKey()
+	if characterKey then
+		return characterKey
+	end
+	local who = UnitName("player")
+	if not who or who == "" or who == UNKNOWNOBJECT then
+		return nil
+	end
+	local realm = GetRealmName() or ""
+	local _, _, _, version = GetBuildInfo()
+	version = tonumber(version) or 0
+	if version > 16000 and version < 20000 and C_GameRules and C_GameRules.IsGameRuleActive and Enum and Enum.GameRule then
+		if Enum.GameRule.HardcoreRuleset and C_GameRules.IsGameRuleActive(Enum.GameRule.HardcoreRuleset) then
+			realm = "Hardcore"
+		elseif Enum.GameRule.RPRuleset and C_GameRules.IsGameRuleActive(Enum.GameRule.RPRuleset) then
+			realm = "RP"
+		elseif Enum.GameRule.PvPRuleset and C_GameRules.IsGameRuleActive(Enum.GameRule.PvPRuleset) then
+			realm = "PvP"
+		else
+			realm = "PvE"
+		end
+	end
+	characterKey = who .. " - " .. realm
+	return characterKey
+end
+
+local function ProfileStore()
+	if type(ZephyrProfilesDB) ~= "table" then
+		ZephyrProfilesDB = {}
+	end
+	if type(ZephyrProfilesDB.profiles) ~= "table" then
+		ZephyrProfilesDB.profiles = {}
+	end
+	if type(ZephyrProfilesDB.profileKeys) ~= "table" then
+		ZephyrProfilesDB.profileKeys = {}
+	end
+	if type(ZephyrProfilesDB.global) ~= "table" then
+		ZephyrProfilesDB.global = {}
+	end
+	return ZephyrProfilesDB
+end
+
+local function ValidProfileName(name)
+	if type(name) ~= "string" then
+		return nil
+	end
+	name = strtrim(name)
+	if name == "" then
+		return nil
+	end
+	local length = strlenutf8 and strlenutf8(name) or #name
+	if length > 50 then
+		return nil
+	end
+	return name
+end
+
+local function DeepCopy(src)
+	if type(src) ~= "table" then
+		return src
+	end
+	local dst = {}
+	for key, value in pairs(src) do
+		dst[key] = DeepCopy(value)
+	end
+	return dst
+end
+
 local function BindProfile()
-	ns.db = ns.acedb.profile
+	local store = ProfileStore()
+	local key = CharacterKey()
+	if not key then
+		return
+	end
+	local name = store.profileKeys[key]
+	if not ValidProfileName(name) then
+		name = "Default"
+		store.profileKeys[key] = name
+	end
+	if type(store.profiles[name]) ~= "table" then
+		store.profiles[name] = {}
+	end
+	ns.db = store.profiles[name]
+	if not tonumber(ns.db.dbVersion) then
+		CopyDefaults(defaults, ns.db)
+	end
 	MigrateDB(ns.db)
+	CopyDefaults(defaults, ns.db)
 	if type(ns.db.vendor.neverSell) ~= "table" then
 		ns.db.vendor.neverSell = {}
 	end
@@ -202,34 +289,129 @@ local function BindProfile()
 	end
 end
 
+function ns:CurrentProfile()
+	local key = CharacterKey()
+	if not key then
+		return "Default"
+	end
+	return ProfileStore().profileKeys[key] or "Default"
+end
+
+function ns:ProfileNames()
+	local names = {}
+	for name in pairs(ProfileStore().profiles) do
+		names[#names + 1] = name
+	end
+	table.sort(names)
+	return names
+end
+
+local function ApplyProfile()
+	BindProfile()
+	ns:OnOptionsChanged()
+end
+
+function ns:NewProfile(name)
+	name = ValidProfileName(name)
+	if not name or not CharacterKey() then
+		return false
+	end
+	local store = ProfileStore()
+	if type(store.profiles[name]) == "table" then
+		return false
+	end
+	store.profiles[name] = {}
+	store.profileKeys[CharacterKey()] = name
+	ApplyProfile()
+	return true
+end
+
+function ns:UseProfile(name)
+	name = ValidProfileName(name)
+	if not name or not CharacterKey() then
+		return false
+	end
+	local store = ProfileStore()
+	if type(store.profiles[name]) ~= "table" then
+		return false
+	end
+	store.profileKeys[CharacterKey()] = name
+	ApplyProfile()
+	return true
+end
+
+function ns:CopyProfile(name)
+	name = ValidProfileName(name)
+	local key = CharacterKey()
+	if not name or not key then
+		return false
+	end
+	local store = ProfileStore()
+	if name == store.profileKeys[key] or type(store.profiles[name]) ~= "table" then
+		return false
+	end
+	local current = store.profileKeys[key]
+	store.profiles[current] = DeepCopy(store.profiles[name])
+	ns.db = store.profiles[current]
+	ApplyProfile()
+	return true
+end
+
+function ns:DeleteProfile(name)
+	name = ValidProfileName(name)
+	local key = CharacterKey()
+	if not name or not key then
+		return false
+	end
+	local store = ProfileStore()
+	if name == store.profileKeys[key] or type(store.profiles[name]) ~= "table" then
+		return false
+	end
+	store.profiles[name] = nil
+	for charKey, used in pairs(store.profileKeys) do
+		if used == name then
+			store.profileKeys[charKey] = "Default"
+		end
+	end
+	if type(store.profiles.Default) ~= "table" then
+		store.profiles.Default = {}
+	end
+	return true
+end
+
+function ns:ResetProfile()
+	local key = CharacterKey()
+	if not key then
+		return false
+	end
+	local store = ProfileStore()
+	local name = store.profileKeys[key] or "Default"
+	store.profiles[name] = {}
+	store.profileKeys[key] = name
+	ns.db = store.profiles[name]
+	ApplyProfile()
+	return true
+end
+
 function ns:InitDB()
-	if ns.acedb then
+	if not CharacterKey() then
+		return
+	end
+	if ns.db then
 		BindProfile()
 		return
 	end
+	local store = ProfileStore()
 	local old
 	if type(ZephyrDB) == "table" and ZephyrDB.vendor and not ZephyrDB.profiles then
 		old = ZephyrDB
 	end
-	ns.acedb = LibStub("AceDB-3.0"):New("ZephyrProfilesDB", { profile = defaults, global = { importedLegacy = false } }, "Default")
-	ns.acedb.RegisterCallback(ns, "OnProfileChanged", function()
-		BindProfile()
-		ns:OnOptionsChanged()
-	end)
-	ns.acedb.RegisterCallback(ns, "OnProfileCopied", function()
-		BindProfile()
-		ns:OnOptionsChanged()
-	end)
-	ns.acedb.RegisterCallback(ns, "OnProfileReset", function()
-		BindProfile()
-		ns:OnOptionsChanged()
-	end)
 	BindProfile()
-	if old and ns.acedb.global and not ns.acedb.global.importedLegacy then
+	if old and not store.global.importedLegacy then
 		for key, value in pairs(old) do
 			ns.db[key] = value
 		end
-		ns.acedb.global.importedLegacy = true
+		store.global.importedLegacy = true
 		BindProfile()
 	end
 end
