@@ -23,6 +23,7 @@ local state = {
 	intended = {},
 	looted = {},
 	fishingPlayed = false,
+	bagFull = false,
 }
 
 local function ResetState()
@@ -31,6 +32,7 @@ local function ResetState()
 	state.shown = false
 	state.snap = nil
 	state.fishingPlayed = false
+	state.bagFull = false
 	wipe(state.intended)
 	wipe(state.looted)
 end
@@ -72,30 +74,17 @@ local function GetLootMethod()
 	return nil
 end
 
-local function IsFreeForAll()
+local function ShouldTakeItems()
 	if not IsInGroup() then
 		return true
 	end
 	local method = GetLootMethod()
-	if Enum.LootMethod then
-		if method == Enum.LootMethod.Group
-			or method == Enum.LootMethod.Needbeforegreed
-			or method == Enum.LootMethod.Masterlooter
-			or method == Enum.LootMethod.Roundrobin then
-			return false
-		end
-		local ffa = Enum.LootMethod.Freeforall or Enum.LootMethod.FreeForAll or Enum.LootMethod.Personal
-		if ffa and method == ffa then
-			return true
-		end
-	end
-	if method == "freeforall" or method == "personal" then
-		return true
-	end
-	if method == "group" or method == "needbeforegreed" or method == "master" or method == "roundrobin" then
+	local master = Enum.LootMethod and Enum.LootMethod.Masterlooter
+	local round = Enum.LootMethod and Enum.LootMethod.Roundrobin
+	if method == master or method == "master" or method == round or method == "roundrobin" then
 		return false
 	end
-	return false
+	return true
 end
 
 local function ShouldAutoloot(autoLoot)
@@ -228,11 +217,35 @@ local function AnyIntendedRemaining()
 	return false
 end
 
-local function FinishPass(skippedNoSpace)
-	if state.shown then
-		return
+local function SlotIsLocked(slot)
+	if not LootSlotHasItem(slot) then
+		return false
 	end
-	if skippedNoSpace then
+	return select(6, GetLootSlotInfo(slot)) and true or false
+end
+
+local function AnyLockedRemaining()
+	local num = GetNumLootItems() or 0
+	for slot = 1, num do
+		if SlotIsLocked(slot) then
+			return true
+		end
+	end
+	return false
+end
+
+local function AnyLeftover()
+	local num = GetNumLootItems() or 0
+	for slot = 1, num do
+		if LootSlotHasItem(slot) and not state.intended[slot] then
+			return true
+		end
+	end
+	return false
+end
+
+local function FinishPass(skippedNoSpace)
+	if skippedNoSpace or AnyLockedRemaining() or AnyLeftover() then
 		ShowLootFrame()
 		return
 	end
@@ -264,6 +277,10 @@ local function LootOneSlot(slot, takeItems)
 		LootSlot(slot)
 		state.looted[slot] = true
 		return true
+	end
+
+	if state.bagFull then
+		return false
 	end
 
 	if not takeItems then
@@ -305,9 +322,9 @@ local function ProcessLoot()
 		state.snap = SnapshotBags()
 	end
 
-	local takeItems = IsFreeForAll()
+	local takeItems = ShouldTakeItems()
 	local skippedNoSpace = false
-	ns:Debug("autoloot " .. (takeItems and "all" or "coin+quest") .. " slots=" .. numItems)
+	ns:Debug("autoloot " .. (takeItems and "unlocked" or "coin+quest") .. " slots=" .. numItems)
 
 	for slot = numItems, 1, -1 do
 		if not LootOneSlot(slot, takeItems) then
@@ -323,7 +340,7 @@ function Loot:OnLootReady(autoLoot)
 		return
 	end
 
-	if not ShouldAutoloot(autoLoot) then
+	if ns:Waits() or not ShouldAutoloot(autoLoot) then
 		ResetLootFrame()
 		return
 	end
@@ -345,10 +362,20 @@ function Loot:OnSlotChanged(slot)
 	if not ns.enabled.loot or not state.active then
 		return
 	end
+	if ns:Waits() then
+		ShowLootFrame()
+		return
+	end
 	if state.looted[slot] and LootSlotHasItem(slot) then
 		LootSlot(slot)
+	elseif LootSlotHasItem(slot) and not SlotIsLocked(slot) then
+		LootOneSlot(slot, ShouldTakeItems())
 	end
-	if not state.shown and not AnyIntendedRemaining() then
+	if AnyLockedRemaining() or AnyLeftover() then
+		ShowLootFrame()
+		return
+	end
+	if not AnyIntendedRemaining() then
 		CloseLoot()
 	end
 end
@@ -358,6 +385,7 @@ function Loot:OnError(_, message)
 		return
 	end
 	if message == ERR_INV_FULL or message == ERR_ITEM_MAX_COUNT then
+		state.bagFull = true
 		ShowLootFrame()
 	end
 end

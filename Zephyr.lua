@@ -1,28 +1,30 @@
 local addonName, ns = ...
 
-ns.VERSION = "1.0.0"
-ns.DB_VERSION = 3
+ns.VERSION = "1.1.0"
+ns.DB_VERSION = 4
 
 local defaults = {
-	dbVersion = 3,
+	dbVersion = 4,
 	debug = false,
 	loot = { enabled = true },
 	vendor = {
 		sellJunk = true,
 		repair = true,
+		repairBelow = 100,
 		bagMarks = true,
 		neverSell = {},
 		alwaysSell = {},
+		restock = { enabled = true, items = {} },
 	},
 	mail = { enabled = true },
-	quest = { enabled = true },
+	quest = { enabled = true, accept = false },
 	gossip = { enabled = true },
 	life = {
 		releasePvP = true,
 		acceptRes = true,
 		skipCombatRes = true,
 	},
-	cinematic = { enabled = true },
+	cinematic = { enabled = false },
 	stand = { enabled = true },
 	delete = { enabled = true },
 }
@@ -57,6 +59,16 @@ function ns:HoldSkip()
 	return IsShiftKeyDown()
 end
 
+function ns:Waits()
+	if ns:HoldSkip() then
+		return true
+	end
+	if UnitOnTaxi and UnitOnTaxi() then
+		return true
+	end
+	return false
+end
+
 function ns:ItemIDFromArg(arg)
 	if not arg or arg == "" then
 		return nil
@@ -83,6 +95,9 @@ function ns:OnOptionsChanged()
 	if ns.Marks then
 		ns.Marks:Update()
 	end
+	if ns.Settings and ns.Settings.Refresh then
+		ns.Settings:Refresh()
+	end
 end
 
 local function MigrateDB(db)
@@ -105,7 +120,24 @@ local function MigrateDB(db)
 		db.stand = db.stand or { enabled = true }
 		db.delete = db.delete or { enabled = true }
 	end
+	if version < 4 then
+		db.quest = db.quest or {}
+		db.quest.accept = false
+	end
 	db.dbVersion = ns.DB_VERSION
+end
+
+function ns:IsHardcore()
+	if not C_GameRules then
+		return false
+	end
+	if C_GameRules.IsHardcoreActive and C_GameRules.IsHardcoreActive() then
+		return true
+	end
+	if C_GameRules.IsGameRuleActive and Enum and Enum.GameRule and Enum.GameRule.HardcoreRuleset then
+		return C_GameRules.IsGameRuleActive(Enum.GameRule.HardcoreRuleset) and true or false
+	end
+	return false
 end
 
 function ns:InitDB()
@@ -117,6 +149,15 @@ function ns:InitDB()
 	end
 	if type(ns.db.vendor.alwaysSell) ~= "table" then
 		ns.db.vendor.alwaysSell = {}
+	end
+	if type(ns.db.vendor.restock) ~= "table" then
+		ns.db.vendor.restock = { enabled = true, items = {} }
+	end
+	if type(ns.db.vendor.restock.items) ~= "table" then
+		ns.db.vendor.restock.items = {}
+	end
+	if type(ns.db.vendor.repairBelow) ~= "number" then
+		ns.db.vendor.repairBelow = 100
 	end
 end
 
@@ -152,13 +193,11 @@ local function PrintHelp()
 	ns:Print("mail " .. (ns.db.mail.enabled and "on" or "off")
 		.. "  quest " .. (ns.db.quest.enabled and "on" or "off")
 		.. "  gossip " .. (ns.db.gossip.enabled and "on" or "off"))
-	ns:Print("release " .. (ns.db.life.releasePvP and "on" or "off")
-		.. "  rez " .. (ns.db.life.acceptRes and "on" or "off")
-		.. "  cinematic " .. (ns.db.cinematic.enabled and "on" or "off"))
+	ns:Print("cinematic " .. (ns.db.cinematic.enabled and "on" or "off"))
 	ns:Print("stand " .. (ns.db.stand.enabled and "on" or "off")
 		.. "  delete " .. (ns.db.delete.enabled and "on" or "off"))
 	ns:Print("keep " .. CountKeys(ns.db.vendor.neverSell) .. "  sellitem " .. CountKeys(ns.db.vendor.alwaysSell))
-	ns:Print("/zephyr loot|sell|repair|mail|quest|gossip|release|rez|cinematic|stand|delete")
+	ns:Print("/zephyr loot|sell|repair|mail|quest|gossip|cinematic|stand|delete")
 	ns:Print("/zephyr debug|marks|lists|settings")
 	ns:Print("/zephyr keep|unkeep|sellitem|unsell [link|id]")
 end
@@ -230,14 +269,6 @@ SlashCmdList.ZEPHYR = function(msg)
 			ns.db.gossip.enabled = not ns.db.gossip.enabled
 			return "gossip", ns.db.gossip.enabled
 		end,
-		release = function()
-			ns.db.life.releasePvP = not ns.db.life.releasePvP
-			return "release", ns.db.life.releasePvP
-		end,
-		rez = function()
-			ns.db.life.acceptRes = not ns.db.life.acceptRes
-			return "rez", ns.db.life.acceptRes
-		end,
 		cinematic = function()
 			ns.db.cinematic.enabled = not ns.db.cinematic.enabled
 			return "cinematic", ns.db.cinematic.enabled
@@ -251,6 +282,11 @@ SlashCmdList.ZEPHYR = function(msg)
 			return "delete", ns.db.delete.enabled
 		end,
 	}
+	if cmd == "release" or cmd == "rez" then
+		ns:Print("Zephyr leaves that for you.")
+		return
+	end
+
 	if simple[cmd] then
 		local name, on = simple[cmd]()
 		ns:Print(name .. " " .. (on and "on" or "off"))
@@ -355,6 +391,9 @@ loader:SetScript("OnEvent", function(_, event, name)
 		end
 		if ns.Delete then
 			ns.Delete:Start()
+		end
+		if ns.Trainer then
+			ns.Trainer:Start()
 		end
 	end
 end)

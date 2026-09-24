@@ -14,7 +14,7 @@ local function CursorQuality()
 end
 
 local function ConfirmGreyDelete()
-	if not ns.db.delete.enabled or ns:HoldSkip() then
+	if not ns.db.delete.enabled or ns:Waits() then
 		return
 	end
 	local quality = CursorQuality()
@@ -37,12 +37,25 @@ local function ConfirmGreyDelete()
 	end
 end
 
+local function TryConfirm(tries)
+	tries = tries or 0
+	if CursorQuality() == nil and tries < 5 then
+		C_Timer.After(0.2, function()
+			TryConfirm(tries + 1)
+		end)
+		return
+	end
+	ConfirmGreyDelete()
+end
+
 function Delete:Start()
 	local frame = CreateFrame("Frame")
 	frame:RegisterEvent("DELETE_ITEM_CONFIRM")
 	frame:SetScript("OnEvent", function(_, _, _, quality)
-		if quality == POOR or CursorQuality() == POOR then
-			C_Timer.After(0, ConfirmGreyDelete)
+		if quality == nil or quality == POOR or CursorQuality() == nil or CursorQuality() == POOR then
+			C_Timer.After(0, function()
+				TryConfirm(0)
+			end)
 		end
 	end)
 

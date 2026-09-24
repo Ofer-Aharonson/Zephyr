@@ -147,7 +147,59 @@ local function HookJunkConfirm()
 	end)
 end
 
+local function BagHasKeptPoor()
+	for bag = FIRST_BAG, LAST_BAG do
+		local slots = C_Container.GetContainerNumSlots(bag) or 0
+		for slot = 1, slots do
+			local info = ContainerInfo(bag, slot)
+			local itemID = info and info.itemID
+			if itemID and ns.db.vendor.neverSell[itemID] then
+				local _, _, quality = ItemInfo(info.hyperlink or itemID)
+				quality = quality or info.quality
+				if quality == nil or quality == POOR then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
+local function SellOneKeptSafeJunk()
+	for bag = FIRST_BAG, LAST_BAG do
+		local slots = C_Container.GetContainerNumSlots(bag) or 0
+		for slot = 1, slots do
+			if IsBlizzardJunk(bag, slot) then
+				if C_Container.UseContainerItem then
+					C_Container.UseContainerItem(bag, slot)
+				end
+				return true
+			end
+		end
+	end
+	return false
+end
+
+local function SellJunkRespectingKeep()
+	local tries = 0
+	local function step()
+		if not merchantOpen or tries >= 40 then
+			return
+		end
+		tries = tries + 1
+		if SellOneKeptSafeJunk() then
+			C_Timer.After(0.05, step)
+		end
+	end
+	step()
+end
+
 local function SellBlizzardJunk()
+	if BagHasKeptPoor() then
+		ns:Debug("selling junk around the keep list")
+		SellJunkRespectingKeep()
+		return true
+	end
 	if C_MerchantFrame and C_MerchantFrame.SellAllJunkItems then
 		local enabled = true
 		if C_MerchantFrame.IsSellAllJunkEnabled then
@@ -207,18 +259,16 @@ function Vendor:RepairNow(quiet)
 	end
 
 	local cost = GetRepairAllCost and (GetRepairAllCost() or 0) or 0
-	if ClickIfReady(_G.MerchantRepairAllButton) then
-		repairedThisVisit = true
-		ns:Debug("clicked MerchantRepairAllButton cost=" .. tostring(cost))
-		return
-	end
-
 	if CanMerchantRepair and not CanMerchantRepair() then
 		ns:Debug("repair skipped: merchant cannot repair")
 		return
 	end
 	if cost <= 0 then
 		ns:Debug("repair skipped: nothing to repair")
+		return
+	end
+	if not Vendor:ShouldRepair() then
+		ns:Debug("repair skipped: above threshold")
 		return
 	end
 	if GetMoney() < cost then
@@ -231,38 +281,127 @@ function Vendor:RepairNow(quiet)
 		return
 	end
 	repairedThisVisit = true
-	RepairAllItems()
-	ns:Debug("RepairAllItems() cost=" .. cost)
+	RepairAllItems(false)
+	local coins = GetCoinTextureString and GetCoinTextureString(cost) or tostring(cost)
+	ns:Print("Mended for " .. coins)
+	ns:Debug("RepairAllItems(player) cost=" .. cost)
+end
+
+function Vendor:ShouldRepair()
+	local threshold = ns.db.vendor.repairBelow or 100
+	local sum, count, broken = 0, 0, false
+	for slot = 1, 18 do
+		if GetInventoryItemDurability then
+			local current, max = GetInventoryItemDurability(slot)
+			if current and max and max > 0 then
+				sum = sum + (current / max)
+				count = count + 1
+				if current <= 0 then
+					broken = true
+				end
+			end
+		end
+	end
+	if count == 0 then
+		return false
+	end
+	if broken then
+		return true
+	end
+	return (sum / count) * 100 < threshold
 end
 
 local function StartVendorPass()
 	if not merchantOpen then
 		return
 	end
-	if IsShiftKeyDown() then
-		ns:Debug("vendor pass skipped: shift")
+	if ns:Waits() then
+		ns:Debug("vendor pass skipped: waiting")
 		return
 	end
 	ns:RefreshEnabled()
-	if not ns.enabled.sell and not ns.enabled.repair then
+	local restockOn = ns.db.vendor.restock and ns.db.vendor.restock.enabled ~= false and next(ns.db.vendor.restock.items or {})
+	if not ns.enabled.sell and not ns.enabled.repair and not restockOn then
 		ns:Debug("vendor pass skipped: sell and repair off")
 		return
 	end
 
 	ns:Debug("vendor pass start sell=" .. tostring(ns.enabled.sell) .. " repair=" .. tostring(ns.enabled.repair))
 
+	local moneyBefore = GetMoney and GetMoney() or 0
 	if ns.enabled.sell then
 		SellBlizzardJunk()
 		SellAlwaysList()
 	end
-	Vendor:RepairNow(true)
-	C_Timer.After(0, function()
+	C_Timer.After(0.6, function()
 		if not merchantOpen then
 			return
 		end
+		local gained = (GetMoney and GetMoney() or 0) - moneyBefore
+		if gained > 0 then
+			local coins = GetCoinTextureString and GetCoinTextureString(gained) or tostring(gained)
+			ns:Print("Sold for " .. coins)
+		end
+		Vendor:Restock()
 		ConfirmJunkPopup()
 		Vendor:RepairNow()
 	end)
+end
+
+local function CountInBags(itemID)
+	local count = 0
+	for bag = FIRST_BAG, LAST_BAG do
+		local slots = C_Container.GetContainerNumSlots(bag) or 0
+		for slot = 1, slots do
+			local info = ContainerInfo(bag, slot)
+			if info and info.itemID == itemID then
+				count = count + (info.stackCount or 1)
+			end
+		end
+	end
+	return count
+end
+
+function Vendor:Restock()
+	local restock = ns.db.vendor.restock
+	if not restock or restock.enabled == false or type(restock.items) ~= "table" then
+		return
+	end
+	if not GetMerchantNumItems or not GetMerchantItemID or not BuyMerchantItem then
+		return
+	end
+	local num = GetMerchantNumItems() or 0
+	for itemID, want in pairs(restock.items) do
+		want = tonumber(want) or 0
+		if want > 0 and not ns.db.vendor.alwaysSell[itemID] then
+			local need = want - CountInBags(itemID)
+			for index = 1, num do
+				if need <= 0 then
+					break
+				end
+				if GetMerchantItemID(index) == itemID then
+					local price = select(3, GetMerchantItemInfo(index)) or 0
+					local extended = select(8, GetMerchantItemInfo(index))
+					if extended then
+						break
+					end
+					local canBuy = price > 0 and math.floor(GetMoney() / price) or 0
+					if canBuy <= 0 then
+						local coins = GetCoinTextureString and GetCoinTextureString(price) or tostring(price)
+						ns:Print("Cannot buy " .. ns:ItemLabel(itemID) .. " (" .. coins .. ")")
+						break
+					end
+					local buying = math.min(need, canBuy)
+					BuyMerchantItem(index, buying)
+					if buying < need then
+						local coins = GetCoinTextureString and GetCoinTextureString(price) or tostring(price)
+						ns:Print("Cannot buy " .. ns:ItemLabel(itemID) .. " (" .. coins .. ")")
+					end
+					need = 0
+				end
+			end
+		end
+	end
 end
 
 function Vendor:OnMerchantShow()
