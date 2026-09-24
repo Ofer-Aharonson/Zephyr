@@ -7,7 +7,7 @@ local NAME_WIDTH = 168
 local ROW_HEIGHT = 30
 local INK = { 0.22, 0.12, 0.05 }
 local INK_SOFT = { 0.40, 0.26, 0.13 }
-local SAVE_NOTE = "WoW Forever beta has a bug and will not keep these settings after a reload. They work for this session only.\nIt will be fixed once the game is live."
+local SAVE_NOTE = "WoW Forever beta has a bug and will not keep these settings after a reload.\nThey work for this session only. It will be fixed once the game is live."
 
 local panel
 local child
@@ -303,10 +303,14 @@ local function ConfirmAsk(sentence, apply)
 		StaticPopupDialogs.ZEPHYR_CONFIRM = {
 			button1 = YES,
 			button2 = CANCEL,
-			OnAccept = function(dialog, data)
-				data = data or (dialog and dialog.data)
-				if data and data.apply then
-					data.apply()
+			OnAccept = function(dialog)
+				local fn = StaticPopupDialogs.ZEPHYR_CONFIRM.apply
+				if not fn and dialog and dialog.data then
+					fn = dialog.data.apply
+				end
+				StaticPopupDialogs.ZEPHYR_CONFIRM.apply = nil
+				if fn then
+					fn()
 				end
 			end,
 			timeout = 0,
@@ -316,7 +320,11 @@ local function ConfirmAsk(sentence, apply)
 		}
 	end
 	StaticPopupDialogs.ZEPHYR_CONFIRM.text = sentence
-	StaticPopup_Show("ZEPHYR_CONFIRM", nil, nil, { apply = apply })
+	StaticPopupDialogs.ZEPHYR_CONFIRM.apply = apply
+	local dialog = StaticPopup_Show("ZEPHYR_CONFIRM")
+	if dialog then
+		dialog.data = { apply = apply }
+	end
 end
 
 local function ShowItemLink(row, itemID, list, listName)
@@ -424,7 +432,7 @@ local function LayoutLists()
 		return
 	end
 	HideListRows()
-	local y = -78
+	local y = -4
 	if not listsAnchor.bagLabel then
 		listsAnchor.bagLabel = listsAnchor:CreateFontString(nil, "ARTWORK", "GameFontNormal")
 		listsAnchor.bagLabel:SetText("In your bags")
@@ -532,7 +540,7 @@ local function LayoutLists()
 	y = FillList("Sell", ns.db.vendor.alwaysSell, y, index)
 	listsAnchor:SetHeight(-y + 8)
 	if listsCanvas and listsCanvas.inner then
-		listsCanvas.inner:SetHeight(listsAnchor:GetHeight() + 56)
+		listsCanvas.inner:SetHeight((listsAnchor.canvasOffset or 0) + listsAnchor:GetHeight() + 16)
 	end
 	if child then
 		child:SetHeight(-contentY + 12)
@@ -821,13 +829,14 @@ function SettingsUI:Start()
 	wash:SetAllPoints()
 	wash:SetColorTexture(0.55, 0.28, 0.08, 0.22)
 	local bannerText = banner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	bannerText:SetPoint("TOPLEFT", 8, -6)
-	bannerText:SetPoint("BOTTOMRIGHT", -8, 6)
+	bannerText:SetPoint("TOPLEFT", 8, -8)
+	bannerText:SetWidth(460)
 	bannerText:SetJustifyH("LEFT")
-	bannerText:SetJustifyV("MIDDLE")
+	bannerText:SetJustifyV("TOP")
 	bannerText:SetWordWrap(true)
 	bannerText:SetText(SAVE_NOTE)
 	Ink(bannerText, INK)
+	listsAnchor.banner = banner
 	listsAnchor.hint = listsAnchor:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 	listsAnchor.hint:SetJustifyH("LEFT")
 	listsAnchor.hint:SetWordWrap(true)
@@ -873,12 +882,14 @@ function SettingsUI:Start()
 	repairRow:SetHeight(28)
 	panel.repairRow = repairRow
 	local repairLabel = repairRow:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	repairLabel:SetPoint("LEFT", 0, 0)
+	repairLabel:SetPoint("TOPLEFT", 0, 0)
+	repairLabel:SetWidth(100)
+	repairLabel:SetJustifyH("LEFT")
 	repairLabel:SetText("Repair below")
 	Ink(repairLabel, INK)
 	local repairEdit = CreateFrame("EditBox", nil, repairRow, "InputBoxTemplate")
 	repairEdit:SetSize(44, 20)
-	repairEdit:SetPoint("LEFT", repairLabel, "RIGHT", 12, 0)
+	repairEdit:SetPoint("TOPLEFT", 104, 2)
 	repairEdit:SetAutoFocus(false)
 	repairEdit:SetNumeric(true)
 	repairEdit:SetMaxLetters(3)
@@ -898,9 +909,19 @@ function SettingsUI:Start()
 	repairEdit:SetScript("OnEditFocusLost", SaveRepair)
 	repairRow.edit = repairEdit
 	local repairSuffix = repairRow:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	repairSuffix:SetPoint("LEFT", repairEdit, "RIGHT", 8, 0)
-	repairSuffix:SetText("percent, on average. A broken piece is mended if you can pay.")
+	repairSuffix:SetPoint("TOPLEFT", 156, 0)
+	repairSuffix:SetJustifyH("LEFT")
+	repairSuffix:SetText("%, on all gear average.")
 	Ink(repairSuffix, INK_SOFT)
+	local repairNote = repairRow:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	repairNote:SetPoint("TOPLEFT", 0, -28)
+	repairNote:SetWidth(460)
+	repairNote:SetJustifyH("LEFT")
+	repairNote:SetJustifyV("TOP")
+	repairNote:SetWordWrap(true)
+	repairNote:SetText("A broken piece will be repaired on its own regardless, if you can pay for it.")
+	Ink(repairNote, INK_SOFT)
+	repairRow:SetHeight(64)
 
 	restockAnchor = CreateFrame("Frame", nil, child)
 	restockAnchor:SetPoint("TOPLEFT", 0, -2)
@@ -915,10 +936,10 @@ function SettingsUI:Start()
 	wash:SetAllPoints()
 	wash:SetColorTexture(0.55, 0.28, 0.08, 0.22)
 	local bannerText = banner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	bannerText:SetPoint("TOPLEFT", 8, -6)
-	bannerText:SetPoint("BOTTOMRIGHT", -8, 6)
+	bannerText:SetPoint("TOPLEFT", 8, -8)
+	bannerText:SetWidth(460)
 	bannerText:SetJustifyH("LEFT")
-	bannerText:SetJustifyV("MIDDLE")
+	bannerText:SetJustifyV("TOP")
 	bannerText:SetWordWrap(true)
 	bannerText:SetText(SAVE_NOTE)
 	Ink(bannerText, INK)
@@ -1058,10 +1079,10 @@ function SettingsUI:Start()
 	profileWash:SetAllPoints()
 	profileWash:SetColorTexture(0.55, 0.28, 0.08, 0.22)
 	local profileBannerText = profileBanner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	profileBannerText:SetPoint("TOPLEFT", 8, -6)
-	profileBannerText:SetPoint("BOTTOMRIGHT", -8, 6)
+	profileBannerText:SetPoint("TOPLEFT", 8, -8)
+	profileBannerText:SetWidth(460)
 	profileBannerText:SetJustifyH("LEFT")
-	profileBannerText:SetJustifyV("MIDDLE")
+	profileBannerText:SetJustifyV("TOP")
 	profileBannerText:SetWordWrap(true)
 	profileBannerText:SetText(SAVE_NOTE)
 	Ink(profileBannerText, INK)
@@ -1151,13 +1172,31 @@ function SettingsUI:Start()
 			else
 				local frame = MakeCanvas(false)
 				local rowY = -12
+				if spec.name == "Repair" then
+					local repairBanner = CreateFrame("Frame", nil, frame.inner)
+					repairBanner:SetPoint("TOPLEFT", 8, -4)
+					repairBanner:SetPoint("RIGHT", -8, 0)
+					repairBanner:SetHeight(70)
+					local repairWash = repairBanner:CreateTexture(nil, "BACKGROUND")
+					repairWash:SetAllPoints()
+					repairWash:SetColorTexture(0.55, 0.28, 0.08, 0.22)
+					local repairBannerText = repairBanner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+					repairBannerText:SetPoint("TOPLEFT", 8, -8)
+					repairBannerText:SetWidth(460)
+					repairBannerText:SetJustifyH("LEFT")
+					repairBannerText:SetJustifyV("TOP")
+					repairBannerText:SetWordWrap(true)
+					repairBannerText:SetText(SAVE_NOTE)
+					Ink(repairBannerText, INK)
+					rowY = -82
+				end
 				local nextY = rowY - AddRow(frame.inner, spec, rowY)
 				if spec.name == "Repair" and repairRow then
 					repairRow:SetParent(frame.inner)
 					repairRow:ClearAllPoints()
 					repairRow:SetPoint("TOPLEFT", 8, nextY - 8)
 					repairRow:SetPoint("RIGHT", -12, 0)
-					nextY = nextY - 40
+					nextY = nextY - 72
 					repairFrame = frame
 				end
 				frame.inner:SetHeight(-nextY + 24)
@@ -1165,11 +1204,19 @@ function SettingsUI:Start()
 			end
 		end
 	end
+	if listsAnchor.banner then
+		listsAnchor.banner:SetParent(listsCanvas.inner)
+		listsAnchor.banner:ClearAllPoints()
+		listsAnchor.banner:SetPoint("TOPLEFT", 8, -4)
+		listsAnchor.banner:SetPoint("RIGHT", listsCanvas.inner, "RIGHT", -8, 0)
+	end
 	if markSpec then
-		local nextY = -8 - AddRow(listsCanvas.inner, markSpec, -8)
+		local markY = -82
+		local nextY = markY - AddRow(listsCanvas.inner, markSpec, markY)
 		listsAnchor:ClearAllPoints()
 		listsAnchor:SetPoint("TOPLEFT", 0, nextY - 8)
 		listsAnchor:SetPoint("RIGHT", -8, 0)
+		listsAnchor.canvasOffset = -(nextY - 8)
 	end
 
 	local aboutCanvas = MakeCanvas(false)

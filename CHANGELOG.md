@@ -21,7 +21,7 @@
 - Train all sits beside Train. It buys what you can afford when you press it, and a gold confirm stays up. Shift does not block that click.
 - The plus beside Zephyr opens one page per mechanism: Loot, Sell, Repair, Mail, Quests, Gossip, Cinematics, Stand, Delete, Debug, Restock, Lists, and Profiles. Zephyr itself is the about page. An older character save is copied into the Default profile once. Profiles are Zephyr's own page: new, use, copy, delete, and reset.
 - Restock buys the count you are short in one purchase. Repair below a percent uses the average, and a broken piece is mended if you can pay.
-- WoW Forever beta has a bug and does not load saved settings after a reload. Restock, Lists, and Profiles say so on the page. They work for the current session.
+- WoW Forever beta has a bug and does not load saved settings after a reload. Repair, Restock, Lists, and Profiles say so on the page. They work for the current session.
 - One coin line for a repair, and one combined line for junk and always-sell. COD mail is left in silence. A full bag still takes coin and quest items.
 
 ## 1.0.0 - 2026-09-19

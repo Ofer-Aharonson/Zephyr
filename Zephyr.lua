@@ -386,10 +386,14 @@ function ns:ResetProfile()
 	end
 	local store = ProfileStore()
 	local name = store.profileKeys[key] or "Default"
-	store.profiles[name] = {}
+	local fresh = CopyDefaults(defaults, {})
+	fresh.dbVersion = ns.DB_VERSION
+	store.profiles[name] = fresh
 	store.profileKeys[key] = name
-	ns.db = store.profiles[name]
-	ApplyProfile()
+	ns.db = fresh
+	BindProfile()
+	ns:OnOptionsChanged()
+	ns:Print(name .. " is back to the defaults.")
 	return true
 end
 
