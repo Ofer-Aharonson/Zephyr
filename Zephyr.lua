@@ -1,6 +1,6 @@
 local addonName, ns = ...
 
-ns.VERSION = "1.1.0"
+ns.VERSION = "1.1.1"
 ns.DB_VERSION = 4
 
 local defaults = {

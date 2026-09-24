@@ -1,6 +1,6 @@
 # Zephyr
 
-Quality-of-life clicks for World of Warcraft Classic. Zephyr takes the obvious action: loot, sell junk, repair, open mail, hand in a finished quest, and a few combat and travel confirms.
+Quality-of-life clicks for World of Warcraft: Forever. Zephyr takes the click you were already going to make.
 
 Most options start on.
 
@@ -15,9 +15,6 @@ Tested on Classic Beta (`Interface 16001`).
 - **Open mail** — takes gold and attachments; leaves COD mail
 - **Quests** — hands in a finished quest, including one reward. A new quest or a party-shared quest stays on screen
 - **Single gossip** — clicks a lone vendor, binder, flight master, trainer, bank, or inn. A story line stays up. A flight master opens the map and does not pick the destination
-- **Release in PvP** — releases your spirit in battlegrounds; keeps soulstones
-- **Accept resurrections** — accepts a res outside battlegrounds
-- **Skip combat res** — ignores a res from someone who is in combat
 - **Skip cinematics** — starts off for a new character. Stops in-game movies and talking-head popups. Shift leaves a talking head up
 - **Dismount and stand** — stands when loot, a flight, or an interact was refused. Camp rest keeps you seated
 - **Confirm grey deletes** — clicks OK when you destroy a poor-quality item
@@ -33,7 +30,7 @@ The options screen is the door. The page inside is a ledger on quest parchment. 
 ```
 /zephyr
 /zephyr settings
-/zephyr loot|sell|repair|mail|quest|gossip|release|rez|cinematic|stand|delete
+/zephyr loot|sell|repair|mail|quest|gossip|cinematic|stand|delete
 /zephyr debug|marks|lists
 /zephyr keep [link|id]
 /zephyr unkeep [link|id]
@@ -59,20 +56,39 @@ Fast loot, vendors, mail, quests, and other obvious-click quality of life.
 
 **Description**
 
-Zephyr clicks the obvious button so you do not have to.
+Zephyr takes the obvious click and leaves the real choices up.
 
-It loots coin, quest items, and free loot that fits, sells junk, and repairs with your own coin, opens mail (COD is left alone), hands in a finished quest (a new quest stays on screen), and clicks a lone vendor, binder, flight master, trainer, bank, or inn.
+What it does
 
-It can also release in battlegrounds, accept resurrections, skip combat resurrections, skip cinematics, dismount or stand when the game requires it, and confirm poor-quality item deletes.
+- Finished quests turn in, including a single reward. New quests stay up. That was the whole idea.
+- A turn-in that costs gold stays up. Your last copper stays yours.
+- A lone vendor, binder, trainer, bank, or inn is opened. A story line stays up.
+- The flight master stays up. I can't read your mind.
+- Coin, quest items, and free loot that fits are taken. A locked roll stays up.
+- Poor junk is sold. A poor item you marked to keep is not sold with it.
+- Repair uses your own coin. Restock buys the amount you are still short, in one purchase.
+- Mail takes gold and attachments. COD mail stays.
+- Welcoming Campfire keeps you seated. Loot, a flight, or a refused interact still stands you.
+- A poor item is confirmed when you delete it.
+- Zephyr does not release a corpse, and does not accept a resurrection, summon, duel, trade, or party invite.
+- Train all sits beside Train and buys what you can afford when you press it. Be ready.
 
-Most options start on. Toggle anything from Options → AddOns → Zephyr, or with `/zephyr`.
+Settings
 
-Always-sell and never-sell lists:
+Options → AddOns → Zephyr. The Zephyr row is the about page. The plus opens one page per feature.
 
-- `/zephyr sellitem [link or id]`
+Commands
+
+- `/zephyr` prints the commands.
+- `/zephyr settings`
 - `/zephyr keep [link or id]`
+- `/zephyr unkeep [link or id]`
+- `/zephyr sellitem [link or id]`
+- `/zephyr unsell [link or id]`
 
-This project is not affiliated with Blizzard Entertainment.
+Known issue
+
+WoW Forever beta does not load saved settings after a reload. They work for the current session. Repair, Restock, Lists, and Profiles say so on the page. Please read this.
 
 ## License
 

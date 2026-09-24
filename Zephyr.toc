@@ -2,7 +2,7 @@
 ## Title: Zephyr
 ## Notes: Fast loot, vendors, mail, quests, and other obvious-click QoL.
 ## Author: Ofer Aharonson
-## Version: 1.1.0
+## Version: 1.1.1
 ## DefaultState: enabled
 ## IconTexture: Interface\AddOns\Zephyr\Media\icon
 ## SavedVariables: ZephyrProfilesDB
