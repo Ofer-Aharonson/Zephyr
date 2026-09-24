@@ -27,7 +27,7 @@ local SECTIONS = {
 		items = {
 			{
 				name = "Faster autoloot",
-				tip = "Takes coin, quest items, and free loot that fits. Shift and a locked roll leave the window up.",
+				tip = "Shift and a locked roll leave the window up.",
 				get = function()
 					return ns.db.loot.enabled
 				end,
@@ -37,7 +37,7 @@ local SECTIONS = {
 			},
 			{
 				name = "Sell junk",
-				tip = "Sells every coin-marked junk item at a merchant.",
+				tip = "A kept poor item is not sold.",
 				get = function()
 					return ns.db.vendor.sellJunk
 				end,
@@ -47,7 +47,7 @@ local SECTIONS = {
 			},
 			{
 				name = "Repair",
-				tip = "Repairs your gear with your own gold.",
+				tip = "",
 				get = function()
 					return ns.db.vendor.repair
 				end,
@@ -57,7 +57,7 @@ local SECTIONS = {
 			},
 			{
 				name = "Mark always-sell",
-				tip = "Puts a coin on items you added to the always-sell list.",
+				tip = "",
 				get = function()
 					return ns.db.vendor.bagMarks
 				end,
@@ -72,7 +72,7 @@ local SECTIONS = {
 		items = {
 			{
 				name = "Open mail",
-				tip = "Takes gold and attachments. Leaves COD mail alone.",
+				tip = "COD mail stays in the mailbox.",
 				get = function()
 					return ns.db.mail.enabled
 				end,
@@ -82,7 +82,7 @@ local SECTIONS = {
 			},
 			{
 				name = "Quests",
-				tip = "Hands in a finished quest, including one reward. A new quest stays on screen.",
+				tip = "A new quest stays up. A turn-in that costs gold stays up.",
 				get = function()
 					return ns.db.quest.enabled
 				end,
@@ -92,7 +92,7 @@ local SECTIONS = {
 			},
 			{
 				name = "Single gossip",
-				tip = "Clicks a lone vendor, binder, flight master, trainer, bank, or inn. A story line stays up.",
+				tip = "A story line stays up.",
 				get = function()
 					return ns.db.gossip.enabled
 				end,
@@ -107,7 +107,7 @@ local SECTIONS = {
 		items = {
 			{
 				name = "Skip cinematics",
-				tip = "Stops in-game movies and talking-head popups. Shift leaves a talking head up.",
+				tip = "Shift leaves a talking head up.",
 				get = function()
 					return ns.db.cinematic.enabled
 				end,
@@ -117,7 +117,7 @@ local SECTIONS = {
 			},
 			{
 				name = "Dismount and stand",
-				tip = "Dismounts, and stands when loot, a flight, or an interact was refused. Camp rest keeps you seated.",
+				tip = "Welcoming Campfire keeps you seated.",
 				get = function()
 					return ns.db.stand.enabled
 				end,
@@ -132,7 +132,7 @@ local SECTIONS = {
 		items = {
 			{
 				name = "Confirm grey deletes",
-				tip = "Clicks OK when you destroy a poor-quality item. Hardcore leaves the confirm up.",
+				tip = "Poor items only.",
 				get = function()
 					return ns.db.delete.enabled
 				end,
@@ -142,7 +142,7 @@ local SECTIONS = {
 			},
 			{
 				name = "Debug",
-				tip = "Prints what Zephyr is doing to chat.",
+				tip = "",
 				get = function()
 					return ns.db.debug
 				end,
@@ -200,14 +200,6 @@ local function AddRow(parent, spec, y)
 	name:SetText(spec.name)
 	Ink(name, INK)
 
-	local tip = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	tip:SetPoint("LEFT", name, "RIGHT", 14, 0)
-	tip:SetPoint("RIGHT", row, "RIGHT", -8, 0)
-	tip:SetJustifyH("LEFT")
-	tip:SetWordWrap(true)
-	tip:SetText(spec.tip)
-	Ink(tip, INK_SOFT)
-
 	local function Sync()
 		if ns.db then
 			box:SetChecked(spec.get() and true or false)
@@ -232,9 +224,16 @@ local function AddRow(parent, spec, y)
 	end)
 	row:SetScript("OnEnter", function()
 		hover:Show()
+		if spec.tip and spec.tip ~= "" then
+			GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+			GameTooltip:SetText(spec.name)
+			GameTooltip:AddLine(spec.tip, 1, 1, 1, true)
+			GameTooltip:Show()
+		end
 	end)
 	row:SetScript("OnLeave", function()
 		hover:Hide()
+		GameTooltip:Hide()
 	end)
 
 	row.Sync = Sync

@@ -8,7 +8,7 @@
 - Loot waits on Shift and on a locked roll. Coin, quest items, and free loot that fits are still taken.
 - Sitting at a camp stays sitting while the rest buff is on you. Stand and dismount still run when loot, a taxi, or an interact was refused.
 - Repair spends your own coin, including at a camp merchant.
-- Hardcore, when that ruleset exists, does not release, accept a spirit, or confirm a delete.
+- A poor item is confirmed when you delete it, on every ruleset.
 - Skip cinematics starts off for a new character. Saved cinematic choices are left as they are. Shift also leaves a talking head up.
 - Settings open onto a quest-parchment ledger. Keep and sell lists are item links on that page.
 - Group loot no longer closes while an item Zephyr did not take is still in the window. Unlocked group loot that fits is taken. Master loot and round robin stay on screen.
@@ -19,7 +19,9 @@
 - One addon for every ruleset. Zephyr does not release a corpse or accept a resurrection, a summon, a duel, a trade, or a party invite.
 - Travel lines stay up, including a flight master. A finished quest that costs gold stays up, and no further quest on that person is opened.
 - Train all sits beside Train. It buys what you can afford when you press it, and a gold confirm stays up. Shift does not block that click.
-- The ledger has Options, Restock, and Lists. Restock tops up items you name. Repair below a percent uses the average, and a broken piece is mended if you can pay.
+- The game's addon list has a plus beside Zephyr. That opens Restock, Lists, Profiles, and About. Zephyr itself is the options page.
+- Restock buys the count you are short in one purchase. Repair below a percent uses the average, and a broken piece is mended if you can pay.
+- Forever does not load saved settings after a reload. Restock and Lists say so on the page. They work for the current session.
 - One coin line for a repair, and one combined line for junk and always-sell. COD mail is left in silence. A full bag still takes coin and quest items.
 
 ## 1.0.0 - 2026-09-19
