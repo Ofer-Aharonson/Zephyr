@@ -92,7 +92,7 @@ local SECTIONS = {
 			},
 			{
 				name = "Quests",
-				tip = "A solo new quest stays up. A group quest is accepted. A turn-in that costs gold stays up.",
+				tip = "A quest that costs gold stays up. A turn-in that costs gold stays up.",
 				get = function()
 					return ns.db.quest.enabled
 				end,
@@ -1238,7 +1238,7 @@ function SettingsUI:Start()
 	changes:SetText(table.concat({
 		"Quests",
 		"Finished quests turn in, including a single reward. That was the main idea that drove this addon to exist.",
-		"A solo new quest stays up. A group quest is accepted. The rest of the party still gets the game's popup.",
+		"A new quest is accepted. A quest that costs gold stays up. A turn-in that costs gold stays up.",
 		"A turn-in that costs gold stays up. Otherwise, it will eat your last copper.",
 		"Zephyr opens no further quest on that person after a gold turn-in. To protect you.",
 		"",

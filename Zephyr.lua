@@ -18,7 +18,7 @@ local defaults = {
 	},
 	mail = { enabled = true, skipEmpty = true },
 	instances = { button = true },
-	quest = { enabled = true, accept = false },
+	quest = { enabled = true, accept = true },
 	gossip = { enabled = true },
 	life = {
 		releasePvP = true,

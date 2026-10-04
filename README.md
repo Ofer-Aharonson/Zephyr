@@ -13,7 +13,7 @@ Tested on Classic Beta (`Interface 16001`).
 - **Repair** — repairs your gear with your own gold
 - **Mark always-sell** — puts a coin on items you added to the always-sell list
 - **Open mail** — takes gold and attachments; leaves COD mail
-- **Quests** — hands in a finished quest, including one reward. A solo new quest stays on screen. A group quest is accepted
+- **Quests** — hands in a finished quest, including one reward. A new quest is accepted. A quest that costs gold stays up
 - **Single gossip** — clicks a lone vendor, binder, flight master, trainer, bank, or inn. A story line stays up. A flight master opens the map and does not pick the destination
 - **Skip cinematics** — starts off for a new character. Stops in-game movies and talking-head popups. Shift leaves a talking head up
 - **Dismount and stand** — stands when loot, a flight, or an interact was refused. Camp rest keeps you seated
