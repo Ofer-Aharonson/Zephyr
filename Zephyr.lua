@@ -16,7 +16,8 @@ local defaults = {
 		alwaysSell = {},
 		restock = { enabled = true, items = {} },
 	},
-	mail = { enabled = true },
+	mail = { enabled = true, skipEmpty = true },
+	instances = { button = true },
 	quest = { enabled = true, accept = false },
 	gossip = { enabled = true },
 	life = {
@@ -27,6 +28,7 @@ local defaults = {
 	cinematic = { enabled = false },
 	stand = { enabled = true },
 	delete = { enabled = true },
+	graphics = { button = true },
 }
 
 ns.enabled = { loot = false, sell = false, repair = false }
@@ -133,6 +135,9 @@ function ns:OnOptionsChanged()
 	end
 	if ns.Settings and ns.Settings.Refresh then
 		ns.Settings:Refresh()
+	end
+	if ns.Graphics then
+		ns.Graphics:Update()
 	end
 end
 
@@ -644,6 +649,9 @@ loader:SetScript("OnEvent", function(_, event, name)
 		end
 		if ns.Cinematic then
 			ns.Cinematic:Start()
+		end
+		if ns.Graphics then
+			ns.Graphics:Start()
 		end
 		if ns.Stand then
 			ns.Stand:Start()

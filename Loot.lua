@@ -343,7 +343,23 @@ local function ProcessLoot()
 
 	local takeItems = ShouldTakeItems()
 	local skippedNoSpace = false
-	local slot = numItems
+	local moneySlots, itemSlots = {}, {}
+	for slot = numItems, 1, -1 do
+		local slotType = GetLootSlotType(slot)
+		if slotType == SLOT_MONEY or slotType == SLOT_CURRENCY then
+			moneySlots[#moneySlots + 1] = slot
+		else
+			itemSlots[#itemSlots + 1] = slot
+		end
+	end
+	local order = {}
+	for i = 1, #moneySlots do
+		order[#order + 1] = moneySlots[i]
+	end
+	for i = 1, #itemSlots do
+		order[#order + 1] = itemSlots[i]
+	end
+	local step = 1
 	ns:Debug("autoloot " .. (takeItems and "unlocked" or "coin+quest") .. " slots=" .. numItems)
 
 	StopLootTicker()
@@ -352,17 +368,17 @@ local function ProcessLoot()
 			StopLootTicker()
 			return
 		end
-		if slot < 1 then
+		if step > #order then
 			StopLootTicker()
 			FinishPass(skippedNoSpace)
 			return
 		end
-		local current = slot
-		slot = slot - 1
+		local current = order[step]
+		step = step + 1
 		if not LootOneSlot(current, takeItems) then
 			skippedNoSpace = true
 		end
-	end, numItems + 1)
+	end, #order + 1)
 end
 
 function Loot:OnLootReady(autoLoot)

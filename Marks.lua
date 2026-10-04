@@ -21,10 +21,13 @@ local function Apply(button, bag, slot)
 		return
 	end
 	local show = false
-	if ns.db and ns.db.vendor.bagMarks and ns.enabled.sell and bag and slot then
+	if ns.db and bag and slot then
 		local info = C_Container.GetContainerItemInfo(bag, slot)
 		local itemID = info and info.itemID
-		show = itemID and ns.db.vendor.alwaysSell[itemID] and not ns.db.vendor.neverSell[itemID]
+		local kept = itemID and ns.db.vendor.neverSell[itemID]
+		local sell = ns.db.vendor.bagMarks and ns.enabled.sell and itemID and ns.db.vendor.alwaysSell[itemID] and not kept
+		local restock = itemID and ns.RestockCount and ns:RestockCount(itemID) and not kept
+		show = sell or restock
 	end
 	if show then
 		EnsureMark(button):Show()

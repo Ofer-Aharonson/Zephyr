@@ -73,6 +73,34 @@ local function HookTrainer()
 	button:SetPoint("RIGHT", ClassTrainerTrainButton, "LEFT", -4, 0)
 	button:SetText("Train all")
 	button:SetScript("OnClick", TrainAll)
+	button:SetScript("OnEnter", function(self)
+		local total, count, moneyLeft = 0, 0, GetMoney and GetMoney() or 0
+		if GetNumTrainerServices and GetTrainerServiceInfo then
+			for index = 1, GetNumTrainerServices() do
+				local _, category = GetTrainerServiceInfo(index)
+				if category == "available" then
+					local cost = ServiceCost(index)
+					if cost > moneyLeft then
+						break
+					end
+					total = total + cost
+					moneyLeft = moneyLeft - cost
+					count = count + 1
+				end
+			end
+		end
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Train all")
+		if count > 0 and C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString then
+			GameTooltip:AddLine(count .. " for " .. C_CurrencyInfo.GetCoinTextureString(total), 1, 1, 1, true)
+		else
+			GameTooltip:AddLine("Nothing you can buy.", 1, 1, 1, true)
+		end
+		GameTooltip:Show()
+	end)
+	button:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
 	ClassTrainerFrame.ZephyrTrainAll = button
 
 	local function Refresh()

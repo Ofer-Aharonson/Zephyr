@@ -23,4 +23,5 @@ Trainer.lua
 Cinematic.lua
 Stand.lua
 Delete.lua
+Graphics.lua
 Settings.lua

@@ -13,7 +13,7 @@ Tested on Classic Beta (`Interface 16001`).
 - **Repair** — repairs your gear with your own gold
 - **Mark always-sell** — puts a coin on items you added to the always-sell list
 - **Open mail** — takes gold and attachments; leaves COD mail
-- **Quests** — hands in a finished quest, including one reward. A new quest or a party-shared quest stays on screen
+- **Quests** — hands in a finished quest, including one reward. A solo new quest stays on screen. A group quest is accepted
 - **Single gossip** — clicks a lone vendor, binder, flight master, trainer, bank, or inn. A story line stays up. A flight master opens the map and does not pick the destination
 - **Skip cinematics** — starts off for a new character. Stops in-game movies and talking-head popups. Shift leaves a talking head up
 - **Dismount and stand** — stands when loot, a flight, or an interact was refused. Camp rest keeps you seated
@@ -85,10 +85,6 @@ Commands
 - `/zephyr unkeep [link or id]`
 - `/zephyr sellitem [link or id]`
 - `/zephyr unsell [link or id]`
-
-Known issue
-
-WoW Forever beta does not load saved settings after a reload. They work for the current session. Repair, Restock, Lists, and Profiles say so on the page. Please read this.
 
 ## License
 

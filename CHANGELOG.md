@@ -1,11 +1,9 @@
 # Zephyr Changelog - 1.1.1 - Release
 
-Please read the known issue at the bottom too. It is important.
-
 ## Quests
 
 - Finished quests turn in, including a single reward. That was the main idea that drove this addon to exist.
-- New quests stay up and party-shared quests stay up. Otherwise it will break the group play immersion.
+- A solo new quest stays up. A group quest is accepted. The rest of the party still gets the game's popup.
 - A turn-in that costs gold stays up. Otherwise, it will eat your last copper.
 - Zephyr opens no further quest on that person after a gold turn-in. To protect you.
 
@@ -55,7 +53,3 @@ Please read the known issue at the bottom too. It is important.
 ## Settings
 
 - The plus icon opens one page per feature: Loot, Sell, Repair, Mail, Quests, Gossip, Cinematics, Stand, Delete, Debug, Restock, Lists, and Profiles. This looks messy, but it gives me a way to implement more features in the future.
-
-## Known issue
-
-WoW Forever beta does not load saved settings after a reload. Repair, Restock, Lists, and Profiles say so on the page. They work for the current session only.

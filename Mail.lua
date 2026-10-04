@@ -46,7 +46,14 @@ local function ProcessInbox()
 				TakeInboxMoney(index)
 				return
 			end
-			if hasItem then
+			if (not money or money <= 0) and not hasItem then
+				if ns.db.mail.skipEmpty ~= false then
+					ns:Debug("mail skip empty #" .. index)
+				elseif GetInboxText then
+					GetInboxText(index)
+					ns:Debug("mail open empty #" .. index)
+				end
+			elseif hasItem then
 				for attach = ATTACHMENTS_MAX_RECEIVE or 16, 1, -1 do
 					if GetInboxItem(index, attach) then
 						if not RememberTake("item:" .. index .. ":" .. attach) then

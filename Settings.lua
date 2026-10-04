@@ -7,8 +7,6 @@ local NAME_WIDTH = 168
 local ROW_HEIGHT = 30
 local INK = { 0.22, 0.12, 0.05 }
 local INK_SOFT = { 0.40, 0.26, 0.13 }
-local SAVE_NOTE = "WoW Forever beta has a bug and will not keep these settings after a reload.\nThey work for this session only. It will be fixed once the game is live."
-
 local panel
 local child
 local listsAnchor
@@ -72,6 +70,17 @@ local SECTIONS = {
 		title = "Mail and quests",
 		items = {
 			{
+				name = "Skip empty mail",
+				tip = "Empty letters stay closed.",
+				get = function()
+					return not ns.db.mail or ns.db.mail.skipEmpty ~= false
+				end,
+				set = function(value)
+					ns.db.mail = ns.db.mail or {}
+					ns.db.mail.skipEmpty = value and true or false
+				end,
+			},
+			{
 				name = "Open mail",
 				tip = "COD mail stays in the mailbox.",
 				get = function()
@@ -83,7 +92,7 @@ local SECTIONS = {
 			},
 			{
 				name = "Quests",
-				tip = "A new quest stays up. A turn-in that costs gold stays up.",
+				tip = "A solo new quest stays up. A group quest is accepted. A turn-in that costs gold stays up.",
 				get = function()
 					return ns.db.quest.enabled
 				end,
@@ -139,6 +148,28 @@ local SECTIONS = {
 				end,
 				set = function(value)
 					ns.db.delete.enabled = value
+				end,
+			},
+			{
+				name = "Reset button",
+				tip = "Opens from the Zephyr button under the minimap. Resets your instances.",
+				get = function()
+					return ns.db.instances and ns.db.instances.button ~= false
+				end,
+				set = function(value)
+					ns.db.instances = ns.db.instances or {}
+					ns.db.instances.button = value and true or false
+				end,
+			},
+			{
+				name = "Stutter button",
+				tip = "Opens from the Zephyr button under the minimap.",
+				get = function()
+					return ns.db.graphics and ns.db.graphics.button
+				end,
+				set = function(value)
+					ns.db.graphics = ns.db.graphics or {}
+					ns.db.graphics.button = value and true or false
 				end,
 			},
 			{
@@ -585,7 +616,7 @@ local function LayoutRestock()
 	for i = 1, #restockAnchor.rows do
 		restockAnchor.rows[i]:Hide()
 	end
-	local y = -78
+	local y = -4
 	if not restockAnchor.bagLabel then
 		restockAnchor.bagLabel = restockAnchor:CreateFontString(nil, "ARTWORK", "GameFontNormal")
 		restockAnchor.bagLabel:SetText("In your bags")
@@ -743,7 +774,7 @@ local function LayoutProfiles()
 	local anchor = profilesCanvas.anchor
 	anchor.current:SetText("This character uses " .. ns:CurrentProfile() .. ".")
 	local names = ns:ProfileNames()
-	local y = -230
+	local y = -158
 	for i = 1, #names do
 		local row = anchor.rows[i]
 		if not row then
@@ -814,29 +845,13 @@ function SettingsUI:Start()
 	contentY = -2
 	local optionPages = {}
 	local markSpec
-	local repairFrame
+	local skipEmptySpec
 	listsAnchor = CreateFrame("Frame", nil, child)
 	listsAnchor:SetPoint("TOPLEFT", 0, -2)
 	listsAnchor:SetPoint("RIGHT", -8, 0)
 	listsAnchor:SetHeight(40)
 	listsAnchor.headers = {}
 	listsAnchor.bagButtons = {}
-	local banner = CreateFrame("Frame", nil, listsAnchor)
-	banner:SetPoint("TOPLEFT", 8, -4)
-	banner:SetPoint("RIGHT", -8, 0)
-	banner:SetHeight(70)
-	local wash = banner:CreateTexture(nil, "BACKGROUND")
-	wash:SetAllPoints()
-	wash:SetColorTexture(0.55, 0.28, 0.08, 0.22)
-	local bannerText = banner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	bannerText:SetPoint("TOPLEFT", 8, -8)
-	bannerText:SetWidth(460)
-	bannerText:SetJustifyH("LEFT")
-	bannerText:SetJustifyV("TOP")
-	bannerText:SetWordWrap(true)
-	bannerText:SetText(SAVE_NOTE)
-	Ink(bannerText, INK)
-	listsAnchor.banner = banner
 	listsAnchor.hint = listsAnchor:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 	listsAnchor.hint:SetJustifyH("LEFT")
 	listsAnchor.hint:SetWordWrap(true)
@@ -928,23 +943,8 @@ function SettingsUI:Start()
 	restockAnchor:SetPoint("RIGHT", -8, 0)
 	restockAnchor:SetHeight(80)
 	restockAnchor:Hide()
-	local banner = CreateFrame("Frame", nil, restockAnchor)
-	banner:SetPoint("TOPLEFT", 8, -4)
-	banner:SetPoint("RIGHT", -8, 0)
-	banner:SetHeight(70)
-	local wash = banner:CreateTexture(nil, "BACKGROUND")
-	wash:SetAllPoints()
-	wash:SetColorTexture(0.55, 0.28, 0.08, 0.22)
-	local bannerText = banner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	bannerText:SetPoint("TOPLEFT", 8, -8)
-	bannerText:SetWidth(460)
-	bannerText:SetJustifyH("LEFT")
-	bannerText:SetJustifyV("TOP")
-	bannerText:SetWordWrap(true)
-	bannerText:SetText(SAVE_NOTE)
-	Ink(bannerText, INK)
 	restockAnchor.hint = restockAnchor:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	restockAnchor.hint:SetPoint("TOPLEFT", 8, -62)
+	restockAnchor.hint:SetPoint("TOPLEFT", 8, -4)
 	restockAnchor.hint:SetPoint("RIGHT", -12, 0)
 	restockAnchor.hint:SetJustifyH("LEFT")
 	restockAnchor.hint:SetText("Click an item from your bags. The number is how many you want to hold. Right-click a line to remove it.")
@@ -953,7 +953,7 @@ function SettingsUI:Start()
 	restockAnchor.bagButtons = {}
 	local addBox = CreateFrame("EditBox", nil, restockAnchor, "InputBoxTemplate")
 	addBox:SetSize(180, 20)
-	addBox:SetPoint("TOPLEFT", 16, -86)
+	addBox:SetPoint("TOPLEFT", 16, -12)
 	addBox:SetAutoFocus(false)
 	addBox:SetMaxLetters(80)
 	local addCount = CreateFrame("EditBox", nil, restockAnchor, "InputBoxTemplate")
@@ -1071,30 +1071,15 @@ function SettingsUI:Start()
 	profilesAnchor:SetHeight(160)
 	profilesAnchor.rows = {}
 	profilesCanvas.anchor = profilesAnchor
-	local profileBanner = CreateFrame("Frame", nil, profilesAnchor)
-	profileBanner:SetPoint("TOPLEFT", 8, -4)
-	profileBanner:SetPoint("RIGHT", -8, 0)
-	profileBanner:SetHeight(70)
-	local profileWash = profileBanner:CreateTexture(nil, "BACKGROUND")
-	profileWash:SetAllPoints()
-	profileWash:SetColorTexture(0.55, 0.28, 0.08, 0.22)
-	local profileBannerText = profileBanner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	profileBannerText:SetPoint("TOPLEFT", 8, -8)
-	profileBannerText:SetWidth(460)
-	profileBannerText:SetJustifyH("LEFT")
-	profileBannerText:SetJustifyV("TOP")
-	profileBannerText:SetWordWrap(true)
-	profileBannerText:SetText(SAVE_NOTE)
-	Ink(profileBannerText, INK)
 	local currentLine = profilesAnchor:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	currentLine:SetPoint("TOPLEFT", 8, -80)
+	currentLine:SetPoint("TOPLEFT", 8, -8)
 	currentLine:SetPoint("RIGHT", -12, 0)
 	currentLine:SetJustifyH("LEFT")
 	Ink(currentLine, INK)
 	profilesAnchor.current = currentLine
 	local profileBox = CreateFrame("EditBox", nil, profilesAnchor, "InputBoxTemplate")
 	profileBox:SetSize(180, 20)
-	profileBox:SetPoint("TOPLEFT", 16, -102)
+	profileBox:SetPoint("TOPLEFT", 16, -30)
 	profileBox:SetAutoFocus(false)
 	profileBox:SetMaxLetters(50)
 	profilesAnchor.box = profileBox
@@ -1104,7 +1089,7 @@ function SettingsUI:Start()
 	local function ProfileButton(text, x, click)
 		local button = CreateFrame("Button", nil, profilesAnchor, "UIPanelButtonTemplate")
 		button:SetSize(64, 22)
-		button:SetPoint("TOPLEFT", 16 + x, -128)
+		button:SetPoint("TOPLEFT", 16 + x, -56)
 		button:SetText(text)
 		button:SetScript("OnClick", click)
 		return button
@@ -1145,7 +1130,7 @@ function SettingsUI:Start()
 		end)
 	end)
 	local profileHint = profilesAnchor:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-	profileHint:SetPoint("TOPLEFT", 8, -158)
+	profileHint:SetPoint("TOPLEFT", 8, -86)
 	profileHint:SetPoint("RIGHT", -12, 0)
 	profileHint:SetJustifyH("LEFT")
 	profileHint:SetWordWrap(true)
@@ -1162,6 +1147,9 @@ function SettingsUI:Start()
 		["Skip cinematics"] = "Cinematics",
 		["Dismount and stand"] = "Stand",
 		["Confirm grey deletes"] = "Delete",
+		["Stutter button"] = "Graphics",
+		["Reset button"] = "Instances",
+		["Skip empty mail"] = "Mail",
 		["Debug"] = "Debug",
 	}
 	for s = 1, #SECTIONS do
@@ -1169,27 +1157,11 @@ function SettingsUI:Start()
 			local spec = SECTIONS[s].items[i]
 			if spec.name == "Mark always-sell" then
 				markSpec = spec
+			elseif spec.name == "Skip empty mail" then
+				skipEmptySpec = spec
 			else
 				local frame = MakeCanvas(false)
 				local rowY = -12
-				if spec.name == "Repair" then
-					local repairBanner = CreateFrame("Frame", nil, frame.inner)
-					repairBanner:SetPoint("TOPLEFT", 8, -4)
-					repairBanner:SetPoint("RIGHT", -8, 0)
-					repairBanner:SetHeight(70)
-					local repairWash = repairBanner:CreateTexture(nil, "BACKGROUND")
-					repairWash:SetAllPoints()
-					repairWash:SetColorTexture(0.55, 0.28, 0.08, 0.22)
-					local repairBannerText = repairBanner:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-					repairBannerText:SetPoint("TOPLEFT", 8, -8)
-					repairBannerText:SetWidth(460)
-					repairBannerText:SetJustifyH("LEFT")
-					repairBannerText:SetJustifyV("TOP")
-					repairBannerText:SetWordWrap(true)
-					repairBannerText:SetText(SAVE_NOTE)
-					Ink(repairBannerText, INK)
-					rowY = -82
-				end
 				local nextY = rowY - AddRow(frame.inner, spec, rowY)
 				if spec.name == "Repair" and repairRow then
 					repairRow:SetParent(frame.inner)
@@ -1197,21 +1169,25 @@ function SettingsUI:Start()
 					repairRow:SetPoint("TOPLEFT", 8, nextY - 8)
 					repairRow:SetPoint("RIGHT", -12, 0)
 					nextY = nextY - 72
-					repairFrame = frame
 				end
 				frame.inner:SetHeight(-nextY + 24)
 				optionPages[#optionPages + 1] = { name = pageName[spec.name] or spec.name, frame = frame }
 			end
 		end
 	end
-	if listsAnchor.banner then
-		listsAnchor.banner:SetParent(listsCanvas.inner)
-		listsAnchor.banner:ClearAllPoints()
-		listsAnchor.banner:SetPoint("TOPLEFT", 8, -4)
-		listsAnchor.banner:SetPoint("RIGHT", listsCanvas.inner, "RIGHT", -8, 0)
+	if skipEmptySpec then
+		for i = 1, #optionPages do
+			if optionPages[i].name == "Mail" then
+				local inner = optionPages[i].frame.inner
+				local y = -44
+				y = y - AddRow(inner, skipEmptySpec, y)
+				inner:SetHeight(-y + 24)
+				break
+			end
+		end
 	end
 	if markSpec then
-		local markY = -82
+		local markY = -12
 		local nextY = markY - AddRow(listsCanvas.inner, markSpec, markY)
 		listsAnchor:ClearAllPoints()
 		listsAnchor:SetPoint("TOPLEFT", 0, nextY - 8)
@@ -1260,11 +1236,9 @@ function SettingsUI:Start()
 	changes:SetJustifyV("TOP")
 	changes:SetWordWrap(true)
 	changes:SetText(table.concat({
-		"Please read the known issue at the bottom. It is important.",
-		"",
 		"Quests",
 		"Finished quests turn in, including a single reward. That was the main idea that drove this addon to exist.",
-		"New quests stay up and party-shared quests stay up. Otherwise it will break the group play immersion.",
+		"A solo new quest stays up. A group quest is accepted. The rest of the party still gets the game's popup.",
 		"A turn-in that costs gold stays up. Otherwise, it will eat your last copper.",
 		"Zephyr opens no further quest on that person after a gold turn-in. To protect you.",
 		"",
@@ -1307,13 +1281,10 @@ function SettingsUI:Start()
 		"",
 		"Settings",
 		"The plus icon opens one page per feature: Loot, Sell, Repair, Mail, Quests, Gossip, Cinematics, Stand, Delete, Debug, Restock, Lists, and Profiles. This looks messy, but it gives me a way to implement more features in the future.",
-		"",
-		"Known issue",
-		"WoW Forever beta does not load saved settings after a reload. Repair, Restock, Lists, and Profiles say so on the page. They work for the current session only.",
 	}, "\n"))
 	Ink(changes, INK)
-	changes:SetHeight(1100)
-	aboutCanvas.inner:SetHeight(1280)
+	changes:SetHeight(1020)
+	aboutCanvas.inner:SetHeight(1200)
 
 	listsAnchor:Show()
 	restockAnchor:Show()

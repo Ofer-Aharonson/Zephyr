@@ -24,10 +24,12 @@ local SAFE_TYPES = {
 	mail = true,
 	stable = true,
 	stablemaster = true,
+	taxi = true,
+	flightmaster = true,
+	flight = true,
 }
 
 local DENY_TYPES = {
-	taxi = true,
 	battlemaster = true,
 	healer = true,
 	spirithealer = true,
@@ -35,19 +37,20 @@ local DENY_TYPES = {
 
 local SAFE_ICON_INDEX = {
 	[1] = true,
+	[2] = true,
 	[3] = true,
 	[5] = true,
 	[6] = true,
 }
 
 local DENY_ICON_INDEX = {
-	[2] = true,
 	[4] = true,
 	[9] = true,
 }
 
 local SAFE_ICON_PATHS = {
 	"Interface\\GossipFrame\\VendorGossipIcon",
+	"Interface\\GossipFrame\\TaxiGossipIcon",
 	"Interface\\GossipFrame\\TrainerGossipIcon",
 	"Interface\\GossipFrame\\BinderGossipIcon",
 	"Interface\\GossipFrame\\BankerGossipIcon",
@@ -119,8 +122,70 @@ end
 
 local goldStop = false
 
+local GROUP_TAG_IDS = {
+	[62] = true,
+	[81] = true,
+	[88] = true,
+	[89] = true,
+}
+
 local function QuestWantsGold()
 	return GetQuestMoneyToGet and (GetQuestMoneyToGet() or 0) > 0
+end
+
+local function QuestIDFrom(quest)
+	return quest and (quest.questID or quest.questId)
+end
+
+local function TagForQuest(questID)
+	if not questID or questID == 0 then
+		return
+	end
+	if C_QuestLog and C_QuestLog.GetQuestTagInfo then
+		local info = C_QuestLog.GetQuestTagInfo(questID)
+		if type(info) == "table" then
+			return info.tagID, info.tagName
+		end
+	end
+	if GetQuestTagInfo then
+		return GetQuestTagInfo(questID)
+	end
+end
+
+local function TagIsGroup(tagID, tagName)
+	if type(tagID) == "number" then
+		if GROUP_TAG_IDS[tagID] then
+			return true
+		end
+		if Enum and Enum.QuestTag and Enum.QuestTag.Group and tagID == Enum.QuestTag.Group then
+			return true
+		end
+	end
+	if type(tagName) == "string" and tagName:lower():find("group", 1, true) then
+		return true
+	end
+	return false
+end
+
+local function IsGroupQuestID(questID)
+	if questID and questID > 0 and C_QuestLog and C_QuestLog.GetSuggestedGroupSize then
+		local size = C_QuestLog.GetSuggestedGroupSize(questID)
+		if type(size) == "number" and size >= 2 then
+			return true
+		end
+	end
+	return TagIsGroup(TagForQuest(questID))
+end
+
+local function IsGroupQuestOffer()
+	local questID = GetQuestID and GetQuestID() or 0
+	if GetSuggestedGroupNum then
+		local size = GetSuggestedGroupNum()
+		if type(size) == "number" and size >= 2 then
+			return true
+		end
+	end
+	return IsGroupQuestID(questID)
 end
 
 local function SelectGossipQuests()
@@ -129,6 +194,24 @@ local function SelectGossipQuests()
 		if quest.isComplete and quest.questID then
 			ns:Debug("gossip select complete quest " .. quest.questID)
 			C_GossipInfo.SelectActiveQuest(quest.questID)
+			return true
+		end
+	end
+	local available = GossipTable(C_GossipInfo.GetAvailableQuests)
+	for _, quest in ipairs(available) do
+		local questID = QuestIDFrom(quest)
+		if questID and IsGroupQuestID(questID) then
+			ns:Debug("gossip select group quest " .. questID)
+			if C_GossipInfo.SelectAvailableQuest then
+				C_GossipInfo.SelectAvailableQuest(questID)
+			elseif SelectAvailableQuest then
+				for i, entry in ipairs(available) do
+					if QuestIDFrom(entry) == questID then
+						SelectAvailableQuest(i)
+						break
+					end
+				end
+			end
 			return true
 		end
 	end
@@ -184,14 +267,44 @@ local function OnGreeting()
 			return
 		end
 	end
+	if GetNumAvailableQuests and SelectAvailableQuest then
+		for i = 1, GetNumAvailableQuests() do
+			local questID
+			if GetAvailableQuestInfo then
+				local a, b, c, d, e = GetAvailableQuestInfo(i)
+				if type(e) == "number" and e > 0 then
+					questID = e
+				elseif type(a) == "number" and a > 0 and a ~= 1 then
+					questID = a
+				end
+			end
+			if questID and IsGroupQuestID(questID) then
+				ns:Debug("greeting select group quest " .. questID)
+				SelectAvailableQuest(i)
+				return
+			end
+		end
+	end
 end
 
 local function OnDetail()
+	if not ns.db.quest.enabled or ns:Waits() then
+		return
+	end
+	if IsGroupQuestOffer() then
+		ns:Debug("accept group quest")
+		AcceptQuest()
+		return
+	end
 	ns:Debug("quest offer left up")
 end
 
 local function OnConfirm()
-	ns:Debug("shared quest left up")
+	if not ns.db.quest.enabled or ns:Waits() then
+		return
+	end
+	ns:Debug("accept group quest popup")
+	ConfirmAcceptQuest()
 end
 
 local function OnProgress()
