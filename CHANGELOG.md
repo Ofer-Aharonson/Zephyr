@@ -1,4 +1,4 @@
-# Zephyr Changelog - 1.1.1 - Release
+# Zephyr Changelog - 1.2.0 - Release
 
 ## Quests
 
